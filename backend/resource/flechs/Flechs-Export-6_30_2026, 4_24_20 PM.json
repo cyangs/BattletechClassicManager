@@ -1,0 +1,64 @@
+{
+  "uuid": "bec0057d-582d-4dac-9785-280d3b377664",
+  "version": 11,
+  "flechSheetsVersion": [
+    7,
+    4,
+    35
+  ],
+  "date": "6/30/2026, 4:24:20 PM",
+  "modified": "2026-06-30T23:24:02.057Z",
+  "viewed": "2026-06-30T23:24:20.602Z",
+  "created": "2026-06-30T23:24:20.603Z",
+  "playerName": "",
+  "roomName": "",
+  "automationOptions": {
+    "ATTACK_TO_HIT": "AUTO",
+    "BREACH_CHECK": "ASK",
+    "CALLED_SHOT": "AUTO",
+    "CASEII_CRIT_MITIGATION": "ASK",
+    "CLUSTER_RESULTS": "AUTO",
+    "CONSCIOUS_CHECK": "ASK",
+    "CRITICAL_CHANCE_COUNT": "ASK",
+    "CRITICAL_HIT_SLOT": "ASK",
+    "EXPLOSION_DAMAGE": "NOTE",
+    "FALL_DIRECTION": "ASK",
+    "HIT_LOCATION_ROLL": "AUTO",
+    "HULL_INTEGRITY_LOSS": "NOTE",
+    "PILOT_DEATH": "AUTO",
+    "PILOTING_CHECK": "ASK",
+    "PILOT_SAFETY": "ASK",
+    "WEAPON_EFFECT_ROLL": "ASK",
+    "WOUND_FROM_HEAD_HIT": "AUTO"
+  },
+  "count": 1,
+  "sheetUUIDs": [
+    "d0ecaa12-e8bb-47f9-98bc-0170ad5d19e5"
+  ],
+  "sheetNames": [
+    "Warhawk Prime"
+  ],
+  "catalogReferences": [
+    {
+      "s": "Warhawk Prime"
+    }
+  ],
+  "sheets": [
+    {
+      "designation": "Warhawk Prime",
+      "meta": {
+        "uuid": "d0ecaa12-e8bb-47f9-98bc-0170ad5d19e5",
+        "forceId": "bec0057d-582d-4dac-9785-280d3b377664",
+        "useAlias": true,
+        "useCharts": true,
+        "fullManual": true,
+        "srcMTF": "Version:1.0\nMasakari (Warhawk)\nPrime\n\nConfig:Biped Omnimech\nTechBase:Clan\nEra:2999\nSource:TRO 3050 - Succession Wars\nRules Level:2\n\nMass:85\nEngine:340 XL Engine\nStructure:Standard\nMyomer:Standard\n\nHeat Sinks:20 Double\nWalk MP:4\nJump MP:0\n\nArmor:Ferro-Fibrous\nLA Armor:28\nRA Armor:28\nLT Armor:26\nRT Armor:26\nCT Armor:42\nHD Armor:9\nLL Armor:35\nRL Armor:35\nRTL Armor:10\nRTR Armor:10\nRTC Armor:10\n\nWeapons:3\n2 CLERPPC, Left Arm\n1 CLLRM10, Left Arm, Ammo:12\n2 CLERPPC, Right Arm\n\nLeft Arm:\nShoulder\nUpper Arm Actuator\nCLERPPC\nCLERPPC\nCLERPPC\nCLERPPC\nCLLRM10\nCLLRM10 Ammo\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n\nRight Arm:\nShoulder\nUpper Arm Actuator\nCLERPPC\nCLERPPC\nCLERPPC\nCLERPPC\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Torso:\nFusion Engine\nFusion Engine\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLDouble Heat Sink\nFerro-Fibrous\nFerro-Fibrous\n\nRight Torso:\nFusion Engine\nFusion Engine\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLTargeting Computer\nCLTargeting Computer\nCLTargeting Computer\nCLTargeting Computer\nCLTargeting Computer\nFerro-Fibrous\nFerro-Fibrous\n-Empty-\n\nCenter Torso:\nFusion Engine\nFusion Engine\nFusion Engine\nGyro\nGyro\nGyro\nGyro\nFusion Engine\nFusion Engine\nFusion Engine\n-Empty-\n-Empty-\n\nHead:\nLife Support\nSensors\nCockpit\nFerro-Fibrous\nSensors\nLife Support\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\nCLDouble Heat Sink\nCLDouble Heat Sink\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\nCLDouble Heat Sink\nCLDouble Heat Sink\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\n",
+        "mass": 85,
+        "designDataConflictWithServer": false
+      }
+    }
+  ],
+  "mass": 85,
+  "sheetSavePoints": {},
+  "inCloud": false
+}

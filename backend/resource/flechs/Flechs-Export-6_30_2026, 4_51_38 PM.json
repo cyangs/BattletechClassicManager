@@ -1,0 +1,99 @@
+{
+  "uuid": "40718f5c-02c8-4d3e-b6d9-a6a85e6ccde4",
+  "version": 11,
+  "flechSheetsVersion": [
+    7,
+    4,
+    35
+  ],
+  "date": "6/30/2026, 4:51:38 PM",
+  "modified": "2026-06-30T23:38:28.198Z",
+  "viewed": "2026-06-30T23:51:38.476Z",
+  "created": "2026-06-30T23:51:38.478Z",
+  "playerName": "",
+  "roomName": "",
+  "automationOptions": {
+    "ATTACK_TO_HIT": "AUTO",
+    "BREACH_CHECK": "ASK",
+    "CALLED_SHOT": "AUTO",
+    "CASEII_CRIT_MITIGATION": "ASK",
+    "CLUSTER_RESULTS": "AUTO",
+    "CONSCIOUS_CHECK": "ASK",
+    "CRITICAL_CHANCE_COUNT": "ASK",
+    "CRITICAL_HIT_SLOT": "ASK",
+    "EXPLOSION_DAMAGE": "NOTE",
+    "FALL_DIRECTION": "ASK",
+    "HIT_LOCATION_ROLL": "AUTO",
+    "HULL_INTEGRITY_LOSS": "NOTE",
+    "PILOT_DEATH": "AUTO",
+    "PILOTING_CHECK": "ASK",
+    "PILOT_SAFETY": "ASK",
+    "WEAPON_EFFECT_ROLL": "ASK",
+    "WOUND_FROM_HEAD_HIT": "AUTO"
+  },
+  "count": 3,
+  "sheetUUIDs": [
+    "f33cbd49-9ec7-4eef-bc5b-89126973e0e7",
+    "00f0debc-8b63-44a9-8903-a38fedd50e1a",
+    "b5cd6dba-d0ac-4249-96a8-798d482d0293"
+  ],
+  "sheetNames": [
+    "Timber Wolf Prime",
+    "Bane Standard",
+    "Champion C"
+  ],
+  "catalogReferences": [
+    {
+      "s": "Timber Wolf Prime"
+    },
+    {
+      "s": "Bane Standard"
+    },
+    {
+      "s": "Champion C"
+    }
+  ],
+  "sheets": [
+    {
+      "designation": "Timber Wolf Prime",
+      "meta": {
+        "uuid": "f33cbd49-9ec7-4eef-bc5b-89126973e0e7",
+        "forceId": "40718f5c-02c8-4d3e-b6d9-a6a85e6ccde4",
+        "useAlias": true,
+        "useCharts": true,
+        "fullManual": true,
+        "srcMTF": "Version:1.0\nMad Cat (Timber Wolf)\nPrime\n\nConfig:Biped Omnimech\nTechBase:Clan\nEra:2945\nSource:TRO 3050 - Succession Wars\nRules Level:2\n\nMass:75\nEngine:375 XL Engine\nStructure:Endo Steel\nMyomer:Standard\n\nHeat Sinks:17 Double\nWalk MP:5\nJump MP:0\n\nArmor:Ferro-Fibrous\nLA Armor:24\nRA Armor:24\nLT Armor:25\nRT Armor:25\nCT Armor:36\nHD Armor:9\nLL Armor:32\nRL Armor:32\nRTL Armor:7\nRTR Armor:7\nRTC Armor:9\n\nWeapons:9\n1 CLMG, Center Torso, Ammo:200\n1 CLERLargeLaser, Left Arm\n1 CLERMediumLaser, Left Arm\n1 CLMediumPulseLaser, Left Torso\n1 CLLRM20, Left Torso, Ammo:12\n1 CLERLargeLaser, Right Arm\n1 CLERMediumLaser, Right Arm\n1 CLMG, Right Torso\n1 CLLRM20, Right Torso\n\nLeft Arm:\nShoulder\nUpper Arm Actuator\nLower Arm Actuator\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLERLargeLaser\nCLERMediumLaser\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Arm:\nShoulder\nUpper Arm Actuator\nLower Arm Actuator\nCLDouble Heat Sink\nCLDouble Heat Sink\nCLERLargeLaser\nCLERMediumLaser\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Torso:\nFusion Engine\nFusion Engine\nCLMediumPulseLaser\nCLLRM20\nCLLRM20\nCLLRM20\nCLLRM20\nCLLRM20 Ammo\nEndo Steel\nFerro-Fibrous\nFerro-Fibrous\n-Empty-\n\nRight Torso:\nFusion Engine\nFusion Engine\nCLMG\nCLLRM20\nCLLRM20\nCLLRM20\nCLLRM20\nCLMG Ammo (200)\nCLLRM20 Ammo\nEndo Steel\nFerro-Fibrous\nFerro-Fibrous\n\nCenter Torso:\nFusion Engine\nFusion Engine\nFusion Engine\nGyro\nGyro\nGyro\nGyro\nFusion Engine\nFusion Engine\nFusion Engine\nCLMG\nEndo Steel\n\nHead:\nLife Support\nSensors\nCockpit\nFerro-Fibrous\nSensors\nLife Support\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\nEndo Steel\nEndo Steel\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\nEndo Steel\nEndo Steel\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\n",
+        "mass": 75,
+        "designDataConflictWithServer": false
+      }
+    },
+    {
+      "designation": "Bane Standard",
+      "meta": {
+        "uuid": "00f0debc-8b63-44a9-8903-a38fedd50e1a",
+        "forceId": "40718f5c-02c8-4d3e-b6d9-a6a85e6ccde4",
+        "useAlias": true,
+        "useCharts": true,
+        "fullManual": true,
+        "srcMTF": "Version:1.0\nKraken (Bane)\n(Standard)\n\nConfig:Biped\nTechBase:Clan\nEra:2827\nSource:TRO 3055 - Succession Wars\nRules Level:2\n\nMass:100\nEngine:300 XL (Clan) Engine\nStructure:Standard\nMyomer:Standard\n\nHeat Sinks:10 Double\nWalk MP:3\nJump MP:0\n\nArmor:Standard(Clan)\nLA Armor:34\nRA Armor:34\nLT Armor:32\nRT Armor:32\nCT Armor:46\nHD Armor:9\nLL Armor:42\nRL Armor:42\nRTL Armor:10\nRTR Armor:10\nRTC Armor:13\n\nWeapons:14\nUltra AC/2, Left Arm\nUltra AC/2, Left Arm\nUltra AC/2, Left Arm\nUltra AC/2, Left Arm\nUltra AC/2, Left Arm\nUltra AC/2, Right Arm\nUltra AC/2, Right Arm\nUltra AC/2, Right Arm\nUltra AC/2, Right Arm\nUltra AC/2, Right Arm\nMachine Gun, Right Torso\nMachine Gun, Right Torso\nMachine Gun, Right Torso\nMachine Gun, Right Torso\n\nLeft Arm:\nShoulder\nUpper Arm Actuator\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\n\nRight Arm:\nShoulder\nUpper Arm Actuator\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\nCLUltraAC2\n\nLeft Torso:\nFusion Engine\nFusion Engine\nClan Ultra AC/2 Ammo\nClan Ultra AC/2 Ammo\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Torso:\nFusion Engine\nFusion Engine\nCLMG\nCLMG\nCLMG\nCLMG\nClan Machine Gun Ammo - Half\nClan Ultra AC/2 Ammo\nClan Ultra AC/2 Ammo\n-Empty-\n-Empty-\n-Empty-\n\nCenter Torso:\nFusion Engine\nFusion Engine\nFusion Engine\nGyro\nGyro\nGyro\nGyro\nFusion Engine\nFusion Engine\nFusion Engine\n-Empty-\n-Empty-\n\nHead:\nLife Support\nSensors\nCockpit\n-Empty-\nSensors\nLife Support\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\n\n",
+        "mass": 100,
+        "designDataConflictWithServer": false
+      }
+    },
+    {
+      "designation": "Champion C",
+      "meta": {
+        "uuid": "b5cd6dba-d0ac-4249-96a8-798d482d0293",
+        "forceId": "40718f5c-02c8-4d3e-b6d9-a6a85e6ccde4",
+        "useCharts": true,
+        "fullManual": true,
+        "srcMTF": "Version:1.0\nChampion\nC\n\nConfig:Biped\nTechBase:Clan\nEra:2867\nSource:TRO 3050 - Succession Wars\nRules Level:2\n\nMass:60\nEngine:300 XL Engine\nStructure:Standard\nMyomer:Standard\n\nHeat Sinks:10 Double\nWalk MP:5\nJump MP:5\n\nArmor:Ferro-Fibrous\nLA Armor:19\nRA Armor:19\nLT Armor:20\nRT Armor:20\nCT Armor:28\nHD Armor:9\nLL Armor:27\nRL Armor:27\nRTL Armor:7\nRTR Armor:7\nRTC Armor:9\n\nWeapons:7\n1 CLERMediumLaser, Right Arm\n1 CLERMediumLaser, Left Arm\n1 CLLBXAC10, Right Torso, Ammo:20\n2 CLMediumPulseLaser, Left Torso\n1 CLSRM6, Left Torso, Ammo:15\n1 CLSmallPulseLaser, Center Torso\n1 CLSmallPulseLaser, Head\n\nLeft Arm:\nShoulder\nUpper Arm Actuator\nCLERMediumLaser\nFerro-Fibrous\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Arm:\nShoulder\nUpper Arm Actuator\nCLERMediumLaser\nFerro-Fibrous\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Torso:\nFusion Engine\nFusion Engine\nCLMediumPulseLaser\nCLMediumPulseLaser\nCLSRM6\nCLArtemisIV\nCLSRM6 Ammo (Clan) Artemis-capable\nFerro-Fibrous\nFerro-Fibrous\n-Empty-\n-Empty-\n-Empty-\n\nRight Torso:\nFusion Engine\nFusion Engine\nCLLBXAC10\nCLLBXAC10\nCLLBXAC10\nCLLBXAC10\nCLLBXAC10\nCLLBXAC10 Ammo\nCLLBXAC10 CL Ammo\nFerro-Fibrous\n-Empty-\n-Empty-\n\nCenter Torso:\nFusion Engine\nFusion Engine\nFusion Engine\nGyro\nGyro\nGyro\nGyro\nFusion Engine\nFusion Engine\nFusion Engine\nJump Jet\nCLSmallPulseLaser\n\nHead:\nLife Support\nSensors\nCockpit\nCLSmallPulseLaser\nSensors\nLife Support\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nLeft Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\nJump Jet\nJump Jet\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n\nRight Leg:\nHip\nUpper Leg Actuator\nLower Leg Actuator\nFoot Actuator\nJump Jet\nJump Jet\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n-Empty-\n",
+        "mass": 60,
+        "designDataConflictWithServer": false
+      }
+    }
+  ],
+  "mass": 235,
+  "sheetSavePoints": {},
+  "inCloud": false
+}
