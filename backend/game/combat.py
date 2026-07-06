@@ -23,6 +23,13 @@ class WeaponShot:
     damage: int
 
 
+""" The all important 2d6 roller"""
+def roll_2d6():
+    return random.randint(1, 6) + random.randint(1, 6)
+
+def roll_1d6():
+    return random.randint(1, 6)
+
 class CombatResolver:
     """Resolves a mech firing a set of weapons.
 
@@ -34,24 +41,47 @@ class CombatResolver:
 
     BASE_TARGET_NUMBER = 7
 
-    def resolve_fire(self, attacker_name: str, weapons: List[dict]) -> dict:
-        """weapons: list of {name, count, damage, heat, location} dicts."""
+    def resolve_fire(
+        self,
+        attacker_name: str,
+        weapons: List[dict],
+        target_name: str = None,
+        facing: str = "Front/Rear",
+        distance: int = 0,
+        target_movement_modifier: int = 0,
+    ) -> dict:
+        """weapons: list of {name, count, damage, heat, location} dicts.
+
+        target_name: display name of the enemy mech being fired upon (optional).
+        facing: which arc the target is presenting ("Left Side", "Front/Rear",
+            "Right Side"). Passed through for display / future hit-location rules.
+        target_movement_modifier: to-hit penalty from the target's movement,
+            added on top of the base gunnery target number.
+        """
         shots: List[WeaponShot] = []
         total_damage = 0
         total_heat = 0
 
+        target_number = self.BASE_TARGET_NUMBER + int(target_movement_modifier or 0)
+
         for w in weapons:
             for _ in range(max(1, int(w.get("count", 1)))):
-                roll = random.randint(1, 6) + random.randint(1, 6)
-                hit = roll >= self.BASE_TARGET_NUMBER
+                # The all important to-hit roll is here. #TOHIT
+                first_die = roll_1d6()
+                second_die = roll_1d6()
+
+                total_die_roll = first_die + second_die
+
+                hit = total_die_roll >= target_number
+
                 damage = int(w.get("damage") or 0) if hit else 0
                 total_damage += damage
                 total_heat += int(w.get("heat") or 0)
                 shots.append(WeaponShot(
                     weapon=w.get("name", "Unknown"),
                     location=w.get("location", "—"),
-                    roll=roll,
-                    target_number=self.BASE_TARGET_NUMBER,
+                    roll=total_die_roll,
+                    target_number=target_number,
                     hit=hit,
                     damage=damage,
                 ))
@@ -59,6 +89,9 @@ class CombatResolver:
         hits = sum(1 for s in shots if s.hit)
         return {
             "attacker": attacker_name,
+            "target": target_name,
+            "facing": facing,
+            "target_movement_modifier": int(target_movement_modifier or 0),
             "shots": [asdict(s) for s in shots],
             "hits": hits,
             "misses": len(shots) - hits,

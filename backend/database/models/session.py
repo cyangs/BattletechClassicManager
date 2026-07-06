@@ -30,6 +30,8 @@ class SessionMech(Base):
     id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(sa.ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)
     mech_id: Mapped[int] = mapped_column(sa.ForeignKey("mechs.id", ondelete="RESTRICT"), nullable=False)
+    # Which side of the battle this unit fights for: "player" (friendly) or "enemy".
+    team: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="player")
 
     # Database joins to travel between entities
     session: Mapped["Session"] = relationship(back_populates="mechs")

@@ -33,14 +33,19 @@ from typing import List, Optional
 # Request validation schemas
 class CreateSessionRequest(BaseModel):
     name: str
+    enemy_mech_ids: List[int] = []  # chassis to deploy as the opposing force
 
 class AddMechsRequest(BaseModel):
     mech_ids: List[int]
-    team: Optional[str] = None
+    team: str = "player"  # "player" (friendly) or "enemy"
 
 class FireWeaponsRequest(BaseModel):
     mech_id: int
     weapon_link_ids: List[int]  # MechWeapon.id values that were selected to fire
+    target_mech_id: Optional[int] = None  # master Mech id of the enemy being fired upon
+    facing: str = "Front/Rear"  # target arc: "Left Side", "Front/Rear", "Right Side"
+    distance: int = 0 # the distance in hexes to the target
+    target_movement_modifier: int = 0  # to-hit penalty from the target's movement
 
 
 class WeaponSaveRequest(BaseModel):
@@ -154,6 +159,13 @@ def create_session(payload: CreateSessionRequest):
             new_session = Session(name=payload.name)
             session.add(new_session)
             session.flush() # Populate the ID
+
+            # Deploy any chosen enemy chassis straight into the new lobby.
+            for m_id in payload.enemy_mech_ids:
+                if not session.get(Mech, m_id):
+                    raise HTTPException(status_code=404, detail=f"Enemy chassis {m_id} not found")
+                session.add(SessionMech(session_id=new_session.id, mech_id=m_id, team="enemy"))
+
             return {
                 "id": new_session.id,
                 "name": new_session.name,
@@ -219,7 +231,20 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
         if not weapons:
             raise HTTPException(status_code=400, detail="No weapons selected to fire")
 
-        result = CombatResolver().resolve_fire(mech.name, weapons)
+        target_name = None
+        if payload.target_mech_id is not None:
+            target = session.get(Mech, payload.target_mech_id)
+            if not target:
+                raise HTTPException(status_code=404, detail="Target mech not found")
+            target_name = target.name
+
+        result = CombatResolver().resolve_fire(
+            mech.name,
+            weapons,
+            target_name=target_name,
+            facing=payload.facing,
+            target_movement_modifier=payload.target_movement_modifier,
+        )
         result["turn"] = game.current_turn
         return result
 
@@ -231,7 +256,7 @@ def add_mechs_to_session(session_id: int, payload: AddMechsRequest):
                 raise HTTPException(status_code=404, detail="Game session not found")
             inserted_units = []
             for m_id in payload.mech_ids:
-                unit = SessionMech(session_id=session_id, mech_id=m_id)
+                unit = SessionMech(session_id=session_id, mech_id=m_id, team=payload.team)
                 session.add(unit)
                 inserted_units.append(m_id)
             return {"status": "success", "added_mech_ids": inserted_units}
@@ -256,6 +281,7 @@ def get_all_sessions():
                 units.append({
                     "id": unit.id,           # session_mech row id (used for removal)
                     "mech_id": unit.mech_id,
+                    "team": unit.team,
                     "name": m.name if m else "Unknown Chassis",
                     "tonnage": m.tonnage if m else None,
                     "tech_base": m.tech_base.name.lower() if m and hasattr(m.tech_base, "name") else None,
