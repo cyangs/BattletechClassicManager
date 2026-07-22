@@ -44,7 +44,7 @@ class FireWeaponsRequest(BaseModel):
     weapon_link_ids: List[int]  # MechWeapon.id values that were selected to fire
     target_mech_id: Optional[int] = None  # master Mech id of the enemy being fired upon
     facing: str = "Front/Rear"  # target arc: "Left Side", "Front/Rear", "Right Side"
-    distance: int = 0 # the distance in hexes to the target
+    distance_modifier: int = 0 # the distance in hexes to the target
     target_movement_modifier: int = 0  # to-hit penalty from the target's movement
 
 
@@ -242,7 +242,8 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             mech.name,
             weapons,
             target_name=target_name,
-            facing=payload.facing,
+            target_facing=payload.facing,
+            distance_modifier=payload.distance_modifier,
             target_movement_modifier=payload.target_movement_modifier,
         )
         result["turn"] = game.current_turn

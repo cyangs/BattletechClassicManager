@@ -20,5 +20,17 @@ docker run --name local-postgres \
 
 ## Running - 
 
-`python api.py
+### Backend - 
+
+`source .venv/bin/activate`
+
+May need to pip install <something>
+
+`python3 -m pip install -r requirements.txt`
+
+`python3 api.py
 `
+
+### Frontend - 
+
+`npm run dev`

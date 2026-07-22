@@ -915,7 +915,7 @@ function Sessions({ sessions, mechs, reload }) {
 
             {/* Body: lobby (build roster) vs in-progress (combat) */}
             {inProgress ? (
-              <div className="flex-1 p-6 overflow-y-auto max-w-5xl w-full mx-auto space-y-4">
+              <div className="flex-1 p-6 overflow-y-auto max-w-7xl w-full mx-auto space-y-4">
                 {enemyUnits.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                     <span className="uppercase tracking-wider text-red-400/80 font-bold">
@@ -1091,7 +1091,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
   return (
     <div className="border border-gray-800 rounded-lg bg-gray-950 p-4 flex gap-4">
       {/* Left: mech + selectable weapons */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 max-w-md">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-2">
             <span className="text-white font-bold">{unit.name}</span>
@@ -1135,7 +1135,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
       </div>
 
       {/* Middle: target selection */}
-      <div className="w-56 shrink-0 border-l border-gray-800 pl-4 space-y-3">
+      <div className="w-72 shrink-0 border-l border-gray-800 pl-4 space-y-3">
         <div>
           <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
             Target
@@ -1201,7 +1201,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
       </div>
 
       {/* Right: fire results */}
-      <div className="w-64 shrink-0 border-l border-gray-800 pl-4">
+      <div className="w-96 shrink-0 border-l border-gray-800 pl-4">
         {result ? (
           <FireResults result={result} />
         ) : (
@@ -1231,14 +1231,40 @@ function FireResults({ result }) {
         <span className="text-green-400">{result.hits} hit</span> /{' '}
         <span className="text-red-400">{result.misses} miss</span>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {result.shots.map((s, i) => (
           <div
             key={i}
-            className={`flex justify-between gap-2 font-mono ${s.hit ? 'text-gray-200' : 'text-gray-500'}`}
+            className={`rounded border px-2.5 py-2 ${
+              s.hit ? 'bg-green-950/25 border-green-900/60' : 'bg-gray-900/40 border-gray-800'
+            }`}
           >
-            <span className="truncate">{s.weapon}</span>
-            <span className="shrink-0">{s.hit ? `HIT ${s.damage}` : `miss (${s.roll})`}</span>
+            {/* Weapon + outcome */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-gray-200 font-medium">{s.weapon}</div>
+                <div className="text-[10px] text-gray-500 font-mono truncate">{s.location}</div>
+              </div>
+              <span
+                className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  s.hit
+                    ? 'bg-green-900/60 text-green-300 border border-green-800'
+                    : 'bg-red-950/60 text-red-400 border border-red-900'
+                }`}
+              >
+                {s.hit ? `Hit · ${s.damage}` : 'Miss'}
+              </span>
+            </div>
+
+            {/* Dice: individual rolls + total vs target number */}
+            <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px]">
+              <Die value={s.first_die} />
+              <Die value={s.second_die} />
+              <span className="text-gray-600">=</span>
+              <span className="text-gray-100 font-bold">{s.roll}</span>
+              <span className="text-gray-600">vs</span>
+              <span className="text-amber-400 font-bold">{s.target_number}+</span>
+            </div>
           </div>
         ))}
       </div>
@@ -1246,5 +1272,14 @@ function FireResults({ result }) {
         {result.total_damage} dmg · {result.total_heat} heat
       </div>
     </div>
+  );
+}
+
+// A single d6 face rendered as a small pip box.
+function Die({ value }) {
+  return (
+    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 border border-gray-600 text-gray-100 text-[10px] font-bold">
+      {value}
+    </span>
   );
 }
