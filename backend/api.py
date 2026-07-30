@@ -40,12 +40,14 @@ class AddMechsRequest(BaseModel):
     team: str = "player"  # "player" (friendly) or "enemy"
 
 class FireWeaponsRequest(BaseModel):
-    mech_id: int
-    weapon_link_ids: List[int]  # MechWeapon.id values that were selected to fire
-    target_mech_id: Optional[int] = None  # master Mech id of the enemy being fired upon
-    facing: str = "Front/Rear"  # target arc: "Left Side", "Front/Rear", "Right Side"
-    distance_modifier: int = 0 # the distance in hexes to the target
-    target_movement_modifier: int = 0  # to-hit penalty from the target's movement
+    mech_id: int                            # Id of the mech in question
+    weapon_link_ids: List[int]              # MechWeapon.id values that were selected to fire
+    target_mech_id: Optional[int] = None    # master Mech id of the enemy being fired upon
+    facing: str = "Front/Rear"              # target arc: "Left Side", "Front/Rear", "Right Side"
+    distance_modifier: int = 0              # the distance in hexes to the target
+    target_movement_modifier: int = 0       # to-hit penalty from the target's movement
+    intervening_terrain: int = 0            # any terrain modifiers
+    partial_cover: bool = False             # if the target is partially obscured
 
 
 class WeaponSaveRequest(BaseModel):
@@ -245,6 +247,8 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             target_facing=payload.facing,
             distance_modifier=payload.distance_modifier,
             target_movement_modifier=payload.target_movement_modifier,
+            intervening_terrain=payload.intervening_terrain,
+            partial_cover=payload.partial_cover,
         )
         result["turn"] = game.current_turn
         return result
