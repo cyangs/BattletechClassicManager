@@ -712,6 +712,8 @@ function Sessions({ sessions, mechs, reload }) {
   const [enemyForces, setEnemyForces] = useState([]); // staged enemy chassis (mech ids)
   const [mechToAdd, setMechToAdd] = useState('');
   const [addTeam, setAddTeam] = useState('player');
+  const [pilotName, setPilotName] = useState('');
+  const [pilotGunnery, setPilotGunnery] = useState('4');
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
@@ -747,10 +749,17 @@ function Sessions({ sessions, mechs, reload }) {
     fetch(`${API}/api/sessions/${selected.id}/mechs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mech_ids: [parseInt(mechToAdd, 10)], team: addTeam }),
+      body: JSON.stringify({
+        mech_ids: [parseInt(mechToAdd, 10)],
+        team: addTeam,
+        pilot_name: pilotName.trim() || null,
+        pilot_gunnery_skill: parseInt(pilotGunnery, 10),
+      }),
     })
       .then(() => {
         setMechToAdd('');
+        setPilotName('');
+        setPilotGunnery('4');
         reload();
       })
       .catch((err) => alert('Error adding mech: ' + err));
@@ -949,8 +958,8 @@ function Sessions({ sessions, mechs, reload }) {
             ) : (
               <div className="flex-1 p-8 overflow-y-auto max-w-3xl w-full mx-auto space-y-6">
                 {/* Add a mech */}
-                <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 flex gap-3 items-end">
-                  <div className="flex-1">
+                <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 flex flex-wrap gap-3 items-end">
+                  <div className="flex-1 min-w-[12rem]">
                     <label className="block text-xs uppercase text-gray-400 mb-1">
                       Deploy Mech from Library
                     </label>
@@ -963,6 +972,30 @@ function Sessions({ sessions, mechs, reload }) {
                       {mechs.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.name} ({m.tonnage}t)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[10rem]">
+                    <label className="block text-xs uppercase text-gray-400 mb-1">Pilot Name</label>
+                    <input
+                      type="text"
+                      value={pilotName}
+                      onChange={(e) => setPilotName(e.target.value)}
+                      placeholder="e.g. Natasha Kerensky"
+                      className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase text-gray-400 mb-1">Gunnery</label>
+                    <select
+                      value={pilotGunnery}
+                      onChange={(e) => setPilotGunnery(e.target.value)}
+                      className="px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
+                    >
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((g) => (
+                        <option key={g} value={g}>
+                          {g}
                         </option>
                       ))}
                     </select>
@@ -993,6 +1026,8 @@ function Sessions({ sessions, mechs, reload }) {
                     <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
                       <tr>
                         <th className="px-6 py-3">Chassis</th>
+                        <th className="px-4 py-3">Pilot</th>
+                        <th className="px-4 py-3">Gunnery</th>
                         <th className="px-4 py-3">Side</th>
                         <th className="px-4 py-3">Tonnage</th>
                         <th className="px-4 py-3">Tech</th>
@@ -1003,6 +1038,10 @@ function Sessions({ sessions, mechs, reload }) {
                       {selected.mechs.map((unit) => (
                         <tr key={unit.id} className="hover:bg-gray-900/20">
                           <td className="px-6 py-4 text-white font-medium">{unit.name}</td>
+                          <td className="px-4 py-4">{unit.pilot_name || '—'}</td>
+                          <td className="px-4 py-4 font-mono text-amber-400">
+                            {unit.pilot_gunnery_skill ?? '—'}
+                          </td>
                           <td className="px-4 py-4">
                             <TeamBadge team={unit.team} />
                           </td>
@@ -1022,7 +1061,7 @@ function Sessions({ sessions, mechs, reload }) {
                       ))}
                       {selected.mechs.length === 0 && (
                         <tr>
-                          <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                          <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                             No mechs deployed. Add one from the library above.
                           </td>
                         </tr>
@@ -1073,6 +1112,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
       body: JSON.stringify({
         mech_id: unit.mech_id,
         weapon_link_ids: [...selected],
+        pilot_gunnery_skill: unit.pilot_gunnery_skill ?? 4,
         target_mech_id: target ? target.mech_id : null,
         facing,
         distance_modifier: parseInt(distanceModifier, 10) || 0,
@@ -1093,11 +1133,12 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
       {/* Left: mech + selectable weapons */}
       <div className="flex-1 min-w-0 max-w-md">
         <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold">{unit.name}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-white font-bold truncate">{unit.name}</span>
             <TeamBadge team={unit.team} />
           </div>
-          <span className="text-xs text-gray-500 font-mono uppercase">
+          <span className="text-xs text-gray-500 font-mono uppercase shrink-0">
+            {unit.pilot_name ? `${unit.pilot_name} · G${unit.pilot_gunnery_skill ?? 4} · ` : `G${unit.pilot_gunnery_skill ?? 4} · `}
             {unit.tonnage ?? '—'}t · {unit.tech_base ?? '—'}
           </span>
         </div>
@@ -1243,7 +1284,6 @@ function FireResults({ result }) {
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="truncate text-gray-200 font-medium">{s.weapon}</div>
-                <div className="text-[10px] text-gray-500 font-mono truncate">{s.location}</div>
               </div>
               <span
                 className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
@@ -1252,19 +1292,46 @@ function FireResults({ result }) {
                     : 'bg-red-950/60 text-red-400 border border-red-900'
                 }`}
               >
-                {s.hit ? `Hit · ${s.damage}` : 'Miss'}
+                {s.hit ? `Hit · ${s.damage} Damage` : 'Miss'}
               </span>
             </div>
 
-            {/* Dice: individual rolls + total vs target number */}
-            <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px]">
-              <Die value={s.first_die} />
-              <Die value={s.second_die} />
-              <span className="text-gray-600">=</span>
-              <span className="text-gray-100 font-bold">{s.roll}</span>
-              <span className="text-gray-600">vs</span>
-              <span className="text-amber-400 font-bold">{s.target_number}+</span>
-            </div>
+            {/* Hit location — shown below the outcome, styled to match */}
+            {s.hit && (
+              <div className="mt-1.5 flex justify-end">
+                <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-800">
+                  {s.hit_location}
+                </span>
+              </div>
+            )}
+
+            {/* Individual 2d6 rolls that make up the shot */}
+            {s.all_rolls ? (
+              <div className="mt-1.5 space-y-1 font-mono text-[11px]">
+                {/* To-hit roll: dice, total, and the number needed */}
+                <div className="flex items-center gap-1.5">
+                  <span className="w-16 shrink-0 uppercase text-gray-500">To Hit</span>
+                  <Die value={s.all_rolls.to_hit_1} />
+                  <Die value={s.all_rolls.to_hit_2} />
+                  <span className="text-gray-600">=</span>
+                  <span className="font-bold text-gray-100">{s.roll}</span>
+                  <span className="text-gray-600">vs</span>
+                  <span className="font-bold text-amber-400">Need {s.target_number}+</span>
+                </div>
+                {/* Location roll: only rolled on a hit */}
+                {s.hit && s.all_rolls.location_1 != null && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-16 shrink-0 uppercase text-gray-500">Location</span>
+                    <Die value={s.all_rolls.location_1} />
+                    <Die value={s.all_rolls.location_2} />
+                    <span className="text-gray-600">=</span>
+                    <span className="font-bold text-gray-100">{s.all_rolls.location_1 + s.all_rolls.location_2}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1.5 font-mono text-[11px] text-gray-500">Out of range</div>
+            )}
           </div>
         ))}
       </div>

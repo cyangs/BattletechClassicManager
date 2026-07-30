@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from typing import List
-from weapon import Weapon
+from database.models.weapon import Weapon
 
 class WeaponRepository:
     def __init__(self, session_factory):

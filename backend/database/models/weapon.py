@@ -25,6 +25,17 @@ class Weapon(Base):
     medium_range: Mapped[int] = mapped_column(Integer, nullable=True)
     long_range: Mapped[int] = mapped_column(Integer, nullable=True)
 
+    # Per-range-band damage for variable-damage weapons (e.g. pulse/clan gear).
+    # NULL means "use the flat `damage` value at this band".
+    short_range_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    medium_range_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    long_range_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # variable_damage: damage changes per range band (see *_range_damage above).
+    # cluster: fires as a cluster (LRM/SRM etc.) resolved on the cluster table.
+    variable_damage: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cluster: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     def __repr__(self) -> str:
         return f"<Weapon(name='{self.name}', damage={self.damage}, heat={self.heat})>"
 

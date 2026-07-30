@@ -32,6 +32,10 @@ class SessionMech(Base):
     mech_id: Mapped[int] = mapped_column(sa.ForeignKey("mechs.id", ondelete="RESTRICT"), nullable=False)
     # Which side of the battle this unit fights for: "player" (friendly) or "enemy".
     team: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="player")
+    # Pilot assigned to this unit for the duration of the session.
+    pilot_name: Mapped[str | None] = mapped_column(sa.String(100), nullable=True)
+    # Gunnery skill (0 best, 8 worst); the base to-hit number when this unit fires.
+    pilot_gunnery_skill: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=4)
 
     # Database joins to travel between entities
     session: Mapped["Session"] = relationship(back_populates="mechs")

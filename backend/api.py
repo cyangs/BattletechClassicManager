@@ -13,6 +13,7 @@ from database.models.enums import TechBaseEnum
 import sqlalchemy as sa
 
 from database.models.session import SessionMech, Session
+from database.dao.weapon_repository import WeaponRepository
 from game.combat import CombatResolver
 
 app = FastAPI(title="BattleTech Classic Manager API")
@@ -38,10 +39,13 @@ class CreateSessionRequest(BaseModel):
 class AddMechsRequest(BaseModel):
     mech_ids: List[int]
     team: str = "player"  # "player" (friendly) or "enemy"
+    pilot_name: Optional[str] = None            # persists on the unit for the session
+    pilot_gunnery_skill: int = Field(4, ge=0, le=8)  # base to-hit number (0 best, 8 worst)
 
 class FireWeaponsRequest(BaseModel):
     mech_id: int                            # Id of the mech in question
     weapon_link_ids: List[int]              # MechWeapon.id values that were selected to fire
+    pilot_gunnery_skill: int = 4            # attacker's gunnery skill (base to-hit number)
     target_mech_id: Optional[int] = None    # master Mech id of the enemy being fired upon
     facing: str = "Front/Rear"              # target arc: "Left Side", "Front/Rear", "Right Side"
     distance_modifier: int = 0              # the distance in hexes to the target
@@ -222,15 +226,16 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             raise HTTPException(status_code=404, detail="Mech not found")
 
         selected_ids = set(payload.weapon_link_ids)
-        weapons = [{
-            "name": link.weapon.full_name or link.weapon.name,
-            "count": link.count,
-            "damage": link.weapon.damage,
-            "heat": link.weapon.heat,
-            "location": link.location,
-        } for link in mech.weapon_links if link.id in selected_ids]
+        # CombatResolver looks weapons up in the DB by name; a weapon mounted in
+        # count N fires N times, so its name appears N times in the list.
+        weapon_names = [
+            link.weapon.name
+            for link in mech.weapon_links
+            if link.id in selected_ids
+            for _ in range(max(1, link.count))
+        ]
 
-        if not weapons:
+        if not weapon_names:
             raise HTTPException(status_code=400, detail="No weapons selected to fire")
 
         target_name = None
@@ -240,9 +245,10 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
                 raise HTTPException(status_code=404, detail="Target mech not found")
             target_name = target.name
 
-        result = CombatResolver().resolve_fire(
+        result = CombatResolver(WeaponRepository(SessionLocal)).resolve_fire(
             mech.name,
-            weapons,
+            weapon_names,
+            pilot_gunnery_skill=payload.pilot_gunnery_skill,
             target_name=target_name,
             target_facing=payload.facing,
             distance_modifier=payload.distance_modifier,
@@ -261,7 +267,13 @@ def add_mechs_to_session(session_id: int, payload: AddMechsRequest):
                 raise HTTPException(status_code=404, detail="Game session not found")
             inserted_units = []
             for m_id in payload.mech_ids:
-                unit = SessionMech(session_id=session_id, mech_id=m_id, team=payload.team)
+                unit = SessionMech(
+                    session_id=session_id,
+                    mech_id=m_id,
+                    team=payload.team,
+                    pilot_name=payload.pilot_name,
+                    pilot_gunnery_skill=payload.pilot_gunnery_skill,
+                )
                 session.add(unit)
                 inserted_units.append(m_id)
             return {"status": "success", "added_mech_ids": inserted_units}
@@ -287,6 +299,8 @@ def get_all_sessions():
                     "id": unit.id,           # session_mech row id (used for removal)
                     "mech_id": unit.mech_id,
                     "team": unit.team,
+                    "pilot_name": unit.pilot_name,
+                    "pilot_gunnery_skill": unit.pilot_gunnery_skill,
                     "name": m.name if m else "Unknown Chassis",
                     "tonnage": m.tonnage if m else None,
                     "tech_base": m.tech_base.name.lower() if m and hasattr(m.tech_base, "name") else None,
@@ -447,5 +461,10 @@ def get_all_mechs():
 
 # --- LAUNCHER ---
 if __name__ == "__main__":
+    import os
+    # reload=True spawns a child process (the StatReload "reloader"), which the
+    # debugger can't attach to and which breaks under pydevd — so it's OFF by
+    # default and breakpoints work. Set UVICORN_RELOAD=1 for hot-reload dev.
+    reload = os.getenv("UVICORN_RELOAD", "0") == "1"
     # Start the server on localhost port 8000
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=reload)
