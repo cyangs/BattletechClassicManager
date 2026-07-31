@@ -36,6 +36,17 @@ class Weapon(Base):
     variable_damage: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     cluster: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Per-range-band to-hit modifiers. NULL means no bonus/penalty at that band.
+    # e.g. variable pulse lasers: -3 short, -2 medium, -1 long.
+    short_range_modifier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    medium_range_modifier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    long_range_modifier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Cluster weapons: how many shots fire and the damage per cluster hit.
+    # e.g. LRM 10 -> num_shots=10, cluster_damage=5; SRM 6 -> num_shots=6, cluster_damage=2.
+    num_shots: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cluster_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Weapon(name='{self.name}', damage={self.damage}, heat={self.heat})>"
 

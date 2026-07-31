@@ -67,6 +67,13 @@ class WeaponSaveRequest(BaseModel):
     short_range: Optional[int] = Field(None, ge=0)
     medium_range: Optional[int] = Field(None, ge=0)
     long_range: Optional[int] = Field(None, ge=0)
+    # Per-range-band to-hit modifiers (may be negative, e.g. pulse lasers).
+    short_range_modifier: Optional[int] = None
+    medium_range_modifier: Optional[int] = None
+    long_range_modifier: Optional[int] = None
+    # Cluster weapons: shot count and damage per cluster hit.
+    num_shots: Optional[int] = Field(None, ge=1)
+    cluster_damage: Optional[int] = Field(None, ge=0)
 
 
 # Request Validation Schema using Pydantic
@@ -395,6 +402,7 @@ def get_all_sessions():
                     "pilot_name": unit.pilot_name,
                     "pilot_gunnery_skill": unit.pilot_gunnery_skill,
                     "name": m.name if m else "Unknown Chassis",
+                    "model": m.model if m else None,
                     "tonnage": m.tonnage if m else None,
                     "tech_base": m.tech_base.name.lower() if m and hasattr(m.tech_base, "name") else None,
                     # Weapon instance keys ("<link_id>#<index>") disabled for the session.
@@ -483,6 +491,11 @@ def save_or_update_weapon(payload: WeaponSaveRequest):
             weapon.short_range = payload.short_range
             weapon.medium_range = payload.medium_range
             weapon.long_range = payload.long_range
+            weapon.short_range_modifier = payload.short_range_modifier
+            weapon.medium_range_modifier = payload.medium_range_modifier
+            weapon.long_range_modifier = payload.long_range_modifier
+            weapon.num_shots = payload.num_shots
+            weapon.cluster_damage = payload.cluster_damage
 
             session.flush()  # Forces ID assignment for the create path
             return {"status": "success", "action": status, "weapon_id": weapon.id}
@@ -504,6 +517,11 @@ def get_all_weapons():
             "short_range": w.short_range,
             "medium_range": w.medium_range,
             "long_range": w.long_range,
+            "short_range_modifier": w.short_range_modifier,
+            "medium_range_modifier": w.medium_range_modifier,
+            "long_range_modifier": w.long_range_modifier,
+            "num_shots": w.num_shots,
+            "cluster_damage": w.cluster_damage,
         } for w in weapons]
 
 

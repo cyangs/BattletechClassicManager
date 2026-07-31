@@ -137,7 +137,7 @@ function MechsLibrary({ mechs, weapons, reload }) {
               }`}
             >
               <div>
-                <div className="font-semibold text-white">{mech.name}</div>
+                <div className="font-semibold text-white">{mech.name} {mech.model}</div>
                 <div className="text-xs text-amber-500/70 font-mono mt-0.5 uppercase">
                   {mech.tech_base}
                 </div>
@@ -501,6 +501,12 @@ function LabeledInput({ label, className = '', ...props }) {
   );
 }
 
+// Format a to-hit modifier for display: "+2", "-3", 0, or "—" when unset.
+function fmtMod(v) {
+  if (v == null) return '—';
+  return v > 0 ? `+${v}` : String(v);
+}
+
 // =====================================================================
 // TAB 2: WEAPONS LIBRARY — read-only weapons_master catalog
 // =====================================================================
@@ -543,6 +549,8 @@ function WeaponsLibrary({ weapons, reload }) {
                 <th className="px-4 py-3">Heat</th>
                 <th className="px-4 py-3">Ammo</th>
                 <th className="px-4 py-3">Range (min / S / M / L)</th>
+                <th className="px-4 py-3">Range Mods (S / M / L)</th>
+                <th className="px-4 py-3">Cluster (shots × dmg)</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -559,6 +567,13 @@ function WeaponsLibrary({ weapons, reload }) {
                     {w.minimum_range ?? '—'} / {w.short_range ?? '—'} / {w.medium_range ?? '—'} /{' '}
                     {w.long_range ?? '—'}
                   </td>
+                  <td className="px-4 py-4 font-mono text-xs text-gray-400">
+                    {fmtMod(w.short_range_modifier)} / {fmtMod(w.medium_range_modifier)} /{' '}
+                    {fmtMod(w.long_range_modifier)}
+                  </td>
+                  <td className="px-4 py-4 font-mono text-xs text-gray-400">
+                    {w.num_shots ? `${w.num_shots} × ${w.cluster_damage ?? '—'}` : '—'}
+                  </td>
                   <td className="px-4 py-4 text-right">
                     <button
                       onClick={() => setEditing(w)}
@@ -571,7 +586,7 @@ function WeaponsLibrary({ weapons, reload }) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                     No weapons in the catalog match your filter.
                   </td>
                 </tr>
@@ -611,6 +626,11 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
       short_range: num(fd.get('short_range')),
       medium_range: num(fd.get('medium_range')),
       long_range: num(fd.get('long_range')),
+      short_range_modifier: num(fd.get('short_range_modifier')),
+      medium_range_modifier: num(fd.get('medium_range_modifier')),
+      long_range_modifier: num(fd.get('long_range_modifier')),
+      num_shots: num(fd.get('num_shots')),
+      cluster_damage: num(fd.get('cluster_damage')),
     };
 
     fetch(`${API}/api/weapons/save`, {
@@ -670,6 +690,29 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
             <LabeledInput name="short_range" label="Short" type="number" min="0" defaultValue={weapon?.short_range ?? ''} />
             <LabeledInput name="medium_range" label="Medium" type="number" min="0" defaultValue={weapon?.medium_range ?? ''} />
             <LabeledInput name="long_range" label="Long" type="number" min="0" defaultValue={weapon?.long_range ?? ''} />
+          </div>
+
+          {/* Per-range-band to-hit modifiers (may be negative, e.g. pulse lasers). */}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+              To-Hit Modifier by Range Band
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <LabeledInput name="short_range_modifier" label="Short Mod" type="number" defaultValue={weapon?.short_range_modifier ?? ''} />
+              <LabeledInput name="medium_range_modifier" label="Medium Mod" type="number" defaultValue={weapon?.medium_range_modifier ?? ''} />
+              <LabeledInput name="long_range_modifier" label="Long Mod" type="number" defaultValue={weapon?.long_range_modifier ?? ''} />
+            </div>
+          </div>
+
+          {/* Cluster weapons (LRM/SRM): shot count and damage per cluster hit. */}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+              Cluster (LRM / SRM)
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <LabeledInput name="num_shots" label="# Shots" type="number" min="1" defaultValue={weapon?.num_shots ?? ''} />
+              <LabeledInput name="cluster_damage" label="Cluster Dmg" type="number" min="0" defaultValue={weapon?.cluster_damage ?? ''} />
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-gray-300">
@@ -963,7 +1006,7 @@ function Sessions({ sessions, mechs, reload }) {
             {completed || detailView === 'history' ? (
               <SessionHistory events={selected.events ?? []} units={selected.mechs} />
             ) : inProgress ? (
-              <div className="flex-1 p-6 overflow-y-auto max-w-7xl w-full mx-auto space-y-4">
+              <div className="flex-1 p-6 overflow-y-auto max-w-screen-2xl w-full mx-auto space-y-4">
                 {enemyUnits.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                     <span className="uppercase tracking-wider text-red-400/80 font-bold">
@@ -1243,15 +1286,19 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
     <div className="border border-gray-800 rounded-lg bg-gray-950 p-4 flex gap-4">
       {/* Left: mech + selectable weapons */}
       <div className="flex-1 min-w-0 max-w-md">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-white font-bold truncate">{unit.name}</span>
-            <TeamBadge team={unit.team} />
+        <div className="mb-3">
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-white font-bold truncate">{unit.name} {unit.model ?? mech?.model ?? ''}</span>
+              <TeamBadge team={unit.team} />
+            </div>
+            <span className="text-xs text-gray-500 font-mono uppercase shrink-0">
+              {unit.tonnage ?? '—'}t · {unit.tech_base ?? '—'}
+            </span>
           </div>
-          <span className="text-xs text-gray-500 font-mono uppercase shrink-0">
-            {unit.pilot_name ? `${unit.pilot_name} · G${unit.pilot_gunnery_skill ?? 4} · ` : `G${unit.pilot_gunnery_skill ?? 4} · `}
-            {unit.tonnage ?? '—'}t · {unit.tech_base ?? '—'}
-          </span>
+          <div className="text-xs text-gray-400 font-mono uppercase mt-0.5">
+            {unit.pilot_name ? `${unit.pilot_name} · ` : ''}Gunnery {unit.pilot_gunnery_skill ?? 4}
+          </div>
         </div>
 
         {instances.length === 0 ? (

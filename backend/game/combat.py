@@ -170,9 +170,13 @@ class CombatResolver:
         """Modifiers shared by every shot this attack. The per-weapon range
            bracket is added on top of this, per shot, below.
            
-           This the basic modifier calculation. 
+           This the basic modifier calculation, following GATOR
            
-           It takes the pilot skill, adds the target mo
+           1. (G) It takes the gunnery skill as the base.
+           2. (A) Adds the attacker movement modifier
+           3. (T) Adds the target movement modifier
+           4. (O) adds any additional modifiers
+                  - See below for range modifier addition
            """
         base_modifiers = (
             int(pilot_gunnery_skill or 0)
@@ -197,6 +201,7 @@ class CombatResolver:
 
             band, range_modifier = self._range_bracket(distance, db_weapon)
             # Beyond long range -> no valid target number (auto miss).
+            """ 5. (R) range modifier is added """
             target_number = None if band is None else base_modifiers + range_modifier
             damage = self._effective_damage(db_weapon, band)
 
