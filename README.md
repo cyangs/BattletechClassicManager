@@ -1,3 +1,29 @@
+# BattleTech Classic Manager
+
+A campaign/session manager for BattleTech Classic — a mech & weapon library plus
+game sessions with turn-based weapon-fire resolution (to-hit rolls, hit
+locations, per-session weapon state, and an event history log).
+
+## Tech Stack
+
+**Backend** (`backend/`) — Python 3.14
+- **FastAPI** — REST API layer (`api.py`)
+- **Uvicorn** — ASGI server
+- **Pydantic v2** — request/response validation
+- **SQLAlchemy 2.0** — ORM (typed `Mapped` models)
+- **Alembic** — database migrations (`backend/migrations/`)
+- **PostgreSQL** via **psycopg 3** — primary datastore
+
+**Frontend** (`frontend/`) — Node / ES modules
+- **React 19** — UI (single-page dashboard in `src/`)
+- **Vite** — dev server & build tooling
+- **Tailwind CSS v4** (`@tailwindcss/vite`) — styling
+- **ESLint** — linting
+
+**Domain logic** — combat resolution lives in `backend/game/` (to-hit
+calculations, range brackets, hit-location and cluster tables), decoupled from
+the API so the placeholder rules can be swapped for full BattleTech rules.
+
 ## Future Schema Changes
 
 Whenever you need to modify your database in the future (e.g., adding an ammo_type column to your

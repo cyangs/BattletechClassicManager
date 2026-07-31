@@ -12,7 +12,7 @@ from database.models.weapon import MechWeapon, Weapon
 from database.models.enums import TechBaseEnum
 import sqlalchemy as sa
 
-from database.models.session import SessionMech, Session
+from database.models.session import SessionMech, Session, SessionEvent, SessionWeaponState
 from database.dao.weapon_repository import WeaponRepository
 from game.combat import CombatResolver
 
@@ -44,13 +44,15 @@ class AddMechsRequest(BaseModel):
 
 class FireWeaponsRequest(BaseModel):
     mech_id: int                            # Id of the mech in question
+    session_mech_id: Optional[int] = None   # SessionMech id of the firing unit (for history)
     weapon_link_ids: List[int]              # MechWeapon.id values that were selected to fire
     pilot_gunnery_skill: int = 4            # attacker's gunnery skill (base to-hit number)
     target_mech_id: Optional[int] = None    # master Mech id of the enemy being fired upon
     facing: str = "Front/Rear"              # target arc: "Left Side", "Front/Rear", "Right Side"
     distance_modifier: int = 0              # the distance in hexes to the target
+    additional_modifier: int = 0            # any additional modifiers, such as partial cover, intervening terrain...
+    self_movement_modifier: int = 0         # to-hit penalty from self movement modifier
     target_movement_modifier: int = 0       # to-hit penalty from the target's movement
-    intervening_terrain: int = 0            # any terrain modifiers
     partial_cover: bool = False             # if the target is partially obscured
 
 
@@ -81,6 +83,11 @@ class AddWeaponLinkRequest(BaseModel):
     weapon_id: int
     count: int = Field(1, ge=1)
     location: str = Field(..., min_length=1, max_length=50)
+
+
+class WeaponStateRequest(BaseModel):
+    weapon_key: str = Field(..., min_length=1, max_length=50)  # "<link_id>#<index>"
+    disabled: bool
 
 
 @app.post("/api/mechs/save")
@@ -209,6 +216,19 @@ def run_turn(session_id: int):
             return {"status": game.status, "current_turn": game.current_turn}
 
 
+@app.post("/api/sessions/{session_id}/end")
+def end_session(session_id: int):
+    """Ends a session: status -> completed. No more turns or weapon fire; the
+    session becomes a read-only history record."""
+    with SessionLocal() as session:
+        with session.begin():
+            game = session.get(Session, session_id)
+            if not game:
+                raise HTTPException(status_code=404, detail="Game session not found")
+            game.status = "completed"
+            return {"status": game.status, "current_turn": game.current_turn}
+
+
 @app.post("/api/sessions/{session_id}/fire")
 def fire_weapons(session_id: int, payload: FireWeaponsRequest):
     """Resolves a mech firing its selected weapons (placeholder combat logic)."""
@@ -216,6 +236,8 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
         game = session.get(Session, session_id)
         if not game:
             raise HTTPException(status_code=404, detail="Game session not found")
+        if game.status == "completed":
+            raise HTTPException(status_code=400, detail="Session has ended; weapons cannot fire")
 
         mech = session.execute(
             select(Mech)
@@ -225,14 +247,15 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
         if not mech:
             raise HTTPException(status_code=404, detail="Mech not found")
 
-        selected_ids = set(payload.weapon_link_ids)
-        # CombatResolver looks weapons up in the DB by name; a weapon mounted in
-        # count N fires N times, so its name appears N times in the list.
+        # Each entry in weapon_link_ids is one shot. A weapon mounted in count N
+        # shows as N individually-selectable rows in the UI, so its link id
+        # appears once per instance the player chose to fire — duplicates are
+        # meaningful here and must not be collapsed.
+        links_by_id = {link.id: link for link in mech.weapon_links}
         weapon_names = [
-            link.weapon.name
-            for link in mech.weapon_links
-            if link.id in selected_ids
-            for _ in range(max(1, link.count))
+            links_by_id[lid].weapon.name
+            for lid in payload.weapon_link_ids
+            if lid in links_by_id
         ]
 
         if not weapon_names:
@@ -252,12 +275,72 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             target_name=target_name,
             target_facing=payload.facing,
             distance_modifier=payload.distance_modifier,
+            additional_modifier=payload.additional_modifier,
+            self_movement_modifier=payload.self_movement_modifier,
             target_movement_modifier=payload.target_movement_modifier,
-            intervening_terrain=payload.intervening_terrain,
             partial_cover=payload.partial_cover,
         )
         result["turn"] = game.current_turn
+
+        # Log the fire into the session history so Run Turn preserves it and the
+        # History view can replay it. The event's presence also marks the unit
+        # as having fired this turn (which greys out its Fire button in the UI).
+        event = SessionEvent(
+            session_id=session_id,
+            turn=game.current_turn,
+            event_type="fire",
+            session_mech_id=payload.session_mech_id,
+            attacker=mech.name,
+            target=target_name,
+            payload=result,
+        )
+        session.add(event)
+        session.commit()
+        result["event_id"] = event.id
         return result
+
+
+@app.delete("/api/sessions/{session_id}/events/{event_id}")
+def undo_event(session_id: int, event_id: int):
+    """Removes a logged event (used to undo a weapon fire before the turn ends)."""
+    with SessionLocal() as session:
+        with session.begin():
+            event = session.get(SessionEvent, event_id)
+            if not event or event.session_id != session_id:
+                raise HTTPException(status_code=404, detail="Event not found in this session")
+            session.delete(event)
+            return {"status": "removed", "event_id": event_id}
+
+
+@app.post("/api/sessions/{session_id}/mechs/{session_mech_id}/weapon-state")
+def set_weapon_state(session_id: int, session_mech_id: int, payload: WeaponStateRequest):
+    """Enable/disable an individual weapon instance on a unit for the session."""
+    with SessionLocal() as session:
+        with session.begin():
+            unit = session.get(SessionMech, session_mech_id)
+            if not unit or unit.session_id != session_id:
+                raise HTTPException(status_code=404, detail="Mech not found in this session")
+
+            state = session.execute(
+                sa.select(SessionWeaponState).where(
+                    SessionWeaponState.session_mech_id == session_mech_id,
+                    SessionWeaponState.weapon_key == payload.weapon_key,
+                )
+            ).scalar_one_or_none()
+
+            if payload.disabled:
+                if not state:
+                    session.add(SessionWeaponState(
+                        session_mech_id=session_mech_id,
+                        weapon_key=payload.weapon_key,
+                        disabled=True,
+                    ))
+            elif state:
+                # Re-enabling: drop the row (absence means enabled).
+                session.delete(state)
+
+            return {"status": "success", "weapon_key": payload.weapon_key, "disabled": payload.disabled}
+
 
 @app.post("/api/sessions/{session_id}/mechs")
 def add_mechs_to_session(session_id: int, payload: AddMechsRequest):
@@ -285,13 +368,23 @@ def get_all_sessions():
     with SessionLocal() as session:
         stmt = (
             select(Session)
-            .options(selectinload(Session.mechs).selectinload(SessionMech.master_mech))
+            .options(
+                selectinload(Session.mechs).selectinload(SessionMech.master_mech),
+                selectinload(Session.mechs).selectinload(SessionMech.weapon_states),
+                selectinload(Session.events),
+            )
             .order_by(Session.id)
         )
         sessions = session.execute(stmt).scalars().all()
 
         data = []
         for s in sessions:
+            # Which units have already fired this turn (marks Fire button spent).
+            fired_events = {
+                e.session_mech_id: e.id
+                for e in s.events
+                if e.event_type == "fire" and e.turn == s.current_turn
+            }
             units = []
             for unit in s.mechs:
                 m = unit.master_mech
@@ -304,6 +397,10 @@ def get_all_sessions():
                     "name": m.name if m else "Unknown Chassis",
                     "tonnage": m.tonnage if m else None,
                     "tech_base": m.tech_base.name.lower() if m and hasattr(m.tech_base, "name") else None,
+                    # Weapon instance keys ("<link_id>#<index>") disabled for the session.
+                    "disabled_weapons": [ws.weapon_key for ws in unit.weapon_states if ws.disabled],
+                    "fired_this_turn": unit.id in fired_events,
+                    "fire_event_id": fired_events.get(unit.id),
                 })
             data.append({
                 "id": s.id,
@@ -311,6 +408,15 @@ def get_all_sessions():
                 "status": s.status,
                 "current_turn": s.current_turn,
                 "mechs": units,
+                "events": [{
+                    "id": e.id,
+                    "turn": e.turn,
+                    "event_type": e.event_type,
+                    "session_mech_id": e.session_mech_id,
+                    "attacker": e.attacker,
+                    "target": e.target,
+                    "payload": e.payload,
+                } for e in s.events],
             })
         return data
 

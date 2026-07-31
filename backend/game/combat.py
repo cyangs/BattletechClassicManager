@@ -142,8 +142,9 @@ class CombatResolver:
         target_name: str = None,
         target_facing: str = "Front/Rear",
         distance_modifier: int = 0,
+        additional_modifier: int = 0,
         target_movement_modifier: int = 0,
-        intervening_terrain: int = 0,
+        self_movement_modifier: int = 0,
         partial_cover: bool = False,
     ) -> dict:
         """Resolve a mech firing its selected weapons.
@@ -167,14 +168,18 @@ class CombatResolver:
         total_heat = 0
 
         """Modifiers shared by every shot this attack. The per-weapon range
-           bracket is added on top of this, per shot, below."""
+           bracket is added on top of this, per shot, below.
+           
+           This the basic modifier calculation. 
+           
+           It takes the pilot skill, adds the target mo
+           """
         base_modifiers = (
             int(pilot_gunnery_skill or 0)
             + int(target_movement_modifier or 0)
-            + int(intervening_terrain or 0)
+            + int(self_movement_modifier or 0)
+            + int(additional_modifier or 0)
         )
-        if partial_cover:
-            base_modifiers += self.PARTIAL_COVER_MODIFIER
 
         distance = int(distance_modifier or 0)
         lookup_cache: dict = {}

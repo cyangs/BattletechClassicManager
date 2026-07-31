@@ -43,7 +43,7 @@ export default function MechDashboard() {
       {/* TOP NAVIGATION BAR */}
       <header className="flex items-center gap-8 px-6 h-16 bg-gray-950 border-b border-gray-800 shrink-0">
         <div className="text-lg font-bold text-amber-500 whitespace-nowrap">
-          BattleTech Classic Manager
+          Calvin's Super Awesome BattleTech Campaign Manager Beta Version 1.0
         </div>
         <nav className="flex gap-1">
           {TABS.map((t) => (
@@ -714,6 +714,7 @@ function Sessions({ sessions, mechs, reload }) {
   const [addTeam, setAddTeam] = useState('player');
   const [pilotName, setPilotName] = useState('');
   const [pilotGunnery, setPilotGunnery] = useState('4');
+  const [detailView, setDetailView] = useState('combat'); // 'combat' | 'history'
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
@@ -782,8 +783,14 @@ function Sessions({ sessions, mechs, reload }) {
 
   const startSession = () => postAction('start', 'Start');
   const runTurn = () => postAction('turn', 'Run turn');
+  const endSession = () => {
+    if (!confirm('End this session? Turns and weapon fire will be locked and it becomes read-only.'))
+      return;
+    postAction('end', 'End');
+  };
 
   const inProgress = selected?.status === 'in_progress';
+  const completed = selected?.status === 'completed';
   const playerUnits = selected ? selected.mechs.filter((u) => u.team !== 'enemy') : [];
   const enemyUnits = selected ? selected.mechs.filter((u) => u.team === 'enemy') : [];
 
@@ -856,7 +863,10 @@ function Sessions({ sessions, mechs, reload }) {
           {sessions.map((s) => (
             <button
               key={s.id}
-              onClick={() => setSelectedId(s.id)}
+              onClick={() => {
+                setSelectedId(s.id);
+                setDetailView('combat');
+              }}
               className={`w-full text-left p-4 border-b border-gray-800 transition-colors flex justify-between items-center ${
                 selectedId === s.id
                   ? 'bg-amber-950/40 border-l-4 border-l-amber-500'
@@ -897,20 +907,46 @@ function Sessions({ sessions, mechs, reload }) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {inProgress ? (
-                  <button
-                    onClick={runTurn}
-                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 rounded text-white font-bold shadow-md"
-                  >
-                    ▶ Run Turn
-                  </button>
+                {completed ? (
+                  <span className="px-3 py-1.5 rounded bg-gray-800 border border-gray-700 text-gray-300 text-xs uppercase font-bold tracking-wider">
+                    ✔ Session Completed
+                  </span>
                 ) : (
+                  <>
+                    {inProgress ? (
+                      <button
+                        onClick={runTurn}
+                        className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 rounded text-white font-bold shadow-md"
+                      >
+                        ▶ Run Turn
+                      </button>
+                    ) : (
+                      <button
+                        onClick={startSession}
+                        disabled={selected.mechs.length === 0}
+                        className="px-5 py-2.5 bg-green-700 hover:bg-green-600 rounded text-white font-bold shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        ▶ Start Session
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDetailView((v) => (v === 'history' ? 'combat' : 'history'))}
+                      className={`text-xs px-3 py-1.5 rounded border ${
+                        detailView === 'history'
+                          ? 'bg-amber-950/40 border-amber-700/50 text-amber-400'
+                          : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-300'
+                      }`}
+                    >
+                      📜 History{selected.events?.length ? ` (${selected.events.length})` : ''}
+                    </button>
+                  </>
+                )}
+                {inProgress && (
                   <button
-                    onClick={startSession}
-                    disabled={selected.mechs.length === 0}
-                    className="px-5 py-2.5 bg-green-700 hover:bg-green-600 rounded text-white font-bold shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={endSession}
+                    className="text-xs px-3 py-1.5 bg-orange-950/60 border border-orange-900 hover:bg-orange-900/60 rounded text-orange-300"
                   >
-                    ▶ Start Session
+                    ⏹ End Session
                   </button>
                 )}
                 <button
@@ -922,8 +958,11 @@ function Sessions({ sessions, mechs, reload }) {
               </div>
             </div>
 
-            {/* Body: lobby (build roster) vs in-progress (combat) */}
-            {inProgress ? (
+            {/* Body: a completed session is read-only (history only); otherwise
+                the History toggle, or lobby (build roster) vs combat. */}
+            {completed || detailView === 'history' ? (
+              <SessionHistory events={selected.events ?? []} units={selected.mechs} />
+            ) : inProgress ? (
               <div className="flex-1 p-6 overflow-y-auto max-w-7xl w-full mx-auto space-y-4">
                 {enemyUnits.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
@@ -942,11 +981,17 @@ function Sessions({ sessions, mechs, reload }) {
                 )}
                 {playerUnits.map((unit) => (
                   <SessionMechRow
-                    key={unit.id}
+                    key={`${unit.id}-${selected.current_turn}`}
                     sessionId={selected.id}
                     unit={unit}
                     mech={mechs.find((m) => m.id === unit.mech_id)}
                     enemies={enemyUnits}
+                    firedEvent={
+                      unit.fire_event_id
+                        ? selected.events.find((e) => e.id === unit.fire_event_id)
+                        : null
+                    }
+                    reload={reload}
                   />
                 ))}
                 {playerUnits.length === 0 && (
@@ -1083,14 +1128,36 @@ function Sessions({ sessions, mechs, reload }) {
 }
 
 // One combat row per deployed mech: weapon selection + fire + results.
-function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
+function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null, reload }) {
   const links = mech?.weapon_links ?? [];
+  // Expand each mounted link into one row per weapon instance (a link mounted
+  // in count N becomes N individually-selectable rows), so the player fires
+  // each weapon separately rather than the whole group at once.
+  const instances = links.flatMap((link) =>
+    Array.from({ length: Math.max(1, link.count) }, (_, i) => ({
+      key: `${link.id}#${i}`,
+      linkId: link.id,
+      name: link.weapon?.full_name || link.weapon?.name,
+      location: link.location,
+      heat: link.heat,
+    })),
+  );
+  // Weapon instances disabled for the session (carried forward across turns).
+  const disabledWeapons = new Set(unit.disabled_weapons ?? []);
+  // A logged fire this turn means this unit has already fired (Fire is spent
+  // until the turn advances or the fire is undone).
+  const firedThisTurn = !!unit.fired_this_turn;
+
   const [selected, setSelected] = useState(() => new Set());
   const [targetUnitId, setTargetUnitId] = useState('');
   const [facing, setFacing] = useState('Front/Rear');
-  const [movementModifier, setMovementModifier] = useState('0');
-  const [distanceModifier, setDistanceModifier] = useState('0');
-  const [result, setResult] = useState(null);
+  const [selfMovementModifier, setSelfMovementModifier] = useState('0');
+  const [targetMovementModifier, setTargetMovementModifier] = useState('0');
+  const [distanceModifier, setDistanceModifier] = useState('0')
+  const [additionalModifier, setAdditionalModifier] = useState('0');
+  // Seed from the persisted event so a reload (or turn keep-alive) still shows
+  // this turn's resolved shots; local state covers the immediate fire response.
+  const [result, setResult] = useState(firedEvent?.payload ?? null);
   const [firing, setFiring] = useState(false);
 
   const toggle = (id) =>
@@ -1111,21 +1178,65 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mech_id: unit.mech_id,
-        weapon_link_ids: [...selected],
+        session_mech_id: unit.id,
+        // One link id per selected instance; a link fires once per entry.
+        // Disabled instances can never be selected, so none leak in here.
+        weapon_link_ids: instances
+          .filter((inst) => selected.has(inst.key) && !disabledWeapons.has(inst.key))
+          .map((inst) => inst.linkId),
         pilot_gunnery_skill: unit.pilot_gunnery_skill ?? 4,
         target_mech_id: target ? target.mech_id : null,
         facing,
         distance_modifier: parseInt(distanceModifier, 10) || 0,
-        target_movement_modifier: parseInt(movementModifier, 10) || 0,
+        additional_modifier: parseInt(additionalModifier, 10) || 0,
+        self_movement_modifier: parseInt(selfMovementModifier, 10) || 0,
+        target_movement_modifier: parseInt(targetMovementModifier, 10) || 0,
       }),
     })
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.detail || 'Fire failed');
         setResult(body);
+        reload?.(); // refetch so fired_this_turn greys out the Fire button
       })
       .catch((err) => alert('Error firing weapons: ' + err.message))
       .finally(() => setFiring(false));
+  };
+
+  // Undo this turn's fire: drop the logged event so the unit can fire again.
+  const undoFire = () => {
+    const eventId = unit.fire_event_id ?? firedEvent?.id;
+    if (!eventId) return;
+    fetch(`${API}/api/sessions/${sessionId}/events/${eventId}`, { method: 'DELETE' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Undo failed');
+        setResult(null);
+        reload?.();
+      })
+      .catch((err) => alert('Error undoing fire: ' + err.message));
+  };
+
+  // Toggle a weapon instance's disabled state; persists for the whole session.
+  const toggleDisabled = (weaponKey) => {
+    const nextDisabled = !disabledWeapons.has(weaponKey);
+    if (nextDisabled) {
+      // Can't keep a disabled weapon selected for firing.
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(weaponKey);
+        return next;
+      });
+    }
+    fetch(`${API}/api/sessions/${sessionId}/mechs/${unit.id}/weapon-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weapon_key: weaponKey, disabled: nextDisabled }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Update failed');
+        reload?.();
+      })
+      .catch((err) => alert('Error updating weapon: ' + err.message));
   };
 
   return (
@@ -1143,40 +1254,72 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
           </span>
         </div>
 
-        {links.length === 0 ? (
+        {instances.length === 0 ? (
           <div className="text-xs text-gray-500">No weapons mounted on this chassis.</div>
         ) : (
           <div className="space-y-1.5">
-            {links.map((link) => (
-              <label
-                key={link.id}
-                className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(link.id)}
-                  onChange={() => toggle(link.id)}
-                  className="w-4 h-4 accent-amber-600"
-                />
-                <span className="text-amber-500 font-bold">{link.count}x</span>
-                <span className="truncate">{link.weapon?.full_name || link.weapon?.name}</span>
-                <span className="text-xs text-gray-500 font-mono">· {link.location}</span>
-              </label>
-            ))}
+            {instances.map((inst) => {
+              const isDisabled = disabledWeapons.has(inst.key);
+              return (
+                <div key={inst.key} className="flex items-center gap-2">
+                  <label
+                    className={`flex flex-1 min-w-0 items-center gap-2 text-sm ${
+                      isDisabled
+                        ? 'text-gray-600 line-through cursor-not-allowed'
+                        : 'text-gray-300 cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(inst.key) && !isDisabled}
+                      onChange={() => toggle(inst.key)}
+                      disabled={isDisabled || firedThisTurn}
+                      className="w-4 h-4 accent-amber-600 disabled:opacity-40"
+                    />
+                    <span className="truncate">{inst.name}</span>
+                    <span className="text-xs text-gray-500 font-mono">· {inst.location}</span>
+                    <span className="text-xs text-gray-500 font-mono">· {inst.heat}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleDisabled(inst.key)}
+                    title={isDisabled ? 'Re-enable weapon' : 'Disable weapon for the session'}
+                    className={`ml-auto shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs font-bold leading-none ${
+                      isDisabled
+                        ? 'bg-red-900/70 text-red-200 border border-red-700'
+                        : 'text-gray-500 hover:text-red-400 hover:bg-red-950/40'
+                    }`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
         <button
           onClick={fire}
-          disabled={selected.size === 0 || firing || (needsTarget && !target)}
+          disabled={selected.size === 0 || firing || firedThisTurn || (needsTarget && !target)}
           className="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-white text-sm font-bold uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          🔥 Fire Weapons
+          {firedThisTurn ? '✓ Fired This Turn' : '🔥 Fire Weapons'}
         </button>
+
+        {firedThisTurn && (
+          <div className="mt-2">
+            <button
+              onClick={undoFire}
+              className="text-xs px-2 py-1 bg-gray-900 border border-gray-700 hover:bg-gray-800 rounded text-amber-400"
+            >
+              ↩ Undo Fire
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Middle: target selection */}
-      <div className="w-72 shrink-0 border-l border-gray-800 pl-4 space-y-3">
+      <div className="w-56 shrink-0 border-l border-gray-800 pl-4 space-y-3">
         <div>
           <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
             Target
@@ -1187,7 +1330,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
               onChange={(e) => setTargetUnitId(e.target.value)}
               className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-red-500"
             >
-              <option value="">Select an enemy target…</option>
+              <option value="">Select Target</option>
               {enemies.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name} ({e.tonnage ?? '—'}t)
@@ -1216,13 +1359,26 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
 
         <div>
           <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+            Self Movement Modifier
+          </label>
+          <input
+            type="number"
+            step="1"
+            value={selfMovementModifier}
+            onChange={(e) => setSelfMovementModifier(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
             Target Movement Modifier
           </label>
           <input
             type="number"
             step="1"
-            value={movementModifier}
-            onChange={(e) => setMovementModifier(e.target.value)}
+            value={targetMovementModifier}
+            onChange={(e) => setTargetMovementModifier(e.target.value)}
             className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
           />
         </div>
@@ -1239,6 +1395,19 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
             className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
           />
         </div>
+
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+            Additional Modifiers
+          </label>
+          <input
+            type="number"
+            step="1"
+            value={additionalModifier}
+            onChange={(e) => setAdditionalModifier(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
+          />
+        </div>
       </div>
 
       {/* Right: fire results */}
@@ -1249,6 +1418,97 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [] }) {
           <div className="text-xs text-gray-600 italic">No fire resolved yet.</div>
         )}
       </div>
+
+      {/* Far right: damage totalled by target hit location */}
+      <div className="w-56 shrink-0 border-l border-gray-800 pl-4">
+        {result ? (
+          <DamageByLocation result={result} />
+        ) : (
+          <div className="text-xs text-gray-600 italic">No damage yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Summarizes a fire result as total damage dealt to each of the target's
+// locations (hits only), most-damaged first.
+function DamageByLocation({ result }) {
+  const byLocation = {};
+  (result.shots ?? []).forEach((s) => {
+    if (s.hit && s.hit_location) {
+      byLocation[s.hit_location] = (byLocation[s.hit_location] || 0) + (s.damage || 0);
+    }
+  });
+  const rows = Object.entries(byLocation).sort((a, b) => b[1] - a[1]);
+  const total = rows.reduce((sum, [, dmg]) => sum + dmg, 0);
+
+  return (
+    <div className="text-xs space-y-2">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80">
+        Damage by Location
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-gray-600 italic">No damage dealt.</div>
+      ) : (
+        <>
+          <div className="space-y-1">
+            {rows.map(([location, dmg]) => (
+              <div
+                key={location}
+                className="flex items-center justify-between gap-2 rounded border border-gray-800 bg-gray-900/40 px-2 py-1"
+              >
+                <span className="truncate text-gray-200">{location}</span>
+                <span className="shrink-0 font-bold text-amber-400">{dmg}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between border-t border-gray-800 pt-1.5 font-bold text-amber-400">
+            <span>Total</span>
+            <span>{total}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// History view: the chronological log of session events (newest first).
+function SessionHistory({ events, units }) {
+  const unitName = (id) => units.find((u) => u.id === id)?.name;
+  const ordered = [...events].reverse();
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto max-w-4xl w-full mx-auto space-y-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500/80">
+        Session History
+      </h3>
+      {ordered.length === 0 ? (
+        <div className="text-center text-gray-500 text-sm py-8">
+          No events yet. Fire weapons and run turns to build the log.
+        </div>
+      ) : (
+        ordered.map((e) => (
+          <div key={e.id} className="border border-gray-800 rounded-lg bg-gray-950 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm text-white font-semibold">
+                <span className="text-amber-400">Turn {e.turn}</span> ·{' '}
+                {e.attacker || unitName(e.session_mech_id) || 'Unknown'}
+                {e.target && (
+                  <>
+                    {' → '}
+                    <span className="text-red-400">{e.target}</span>
+                  </>
+                )}
+              </div>
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400">
+                {e.event_type}
+              </span>
+            </div>
+            <FireResults result={e.payload} />
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -1336,7 +1596,7 @@ function FireResults({ result }) {
         ))}
       </div>
       <div className="pt-1.5 border-t border-gray-800 text-amber-400 font-bold">
-        {result.total_damage} dmg · {result.total_heat} heat
+        {result.total_damage} Total Damage · {result.total_heat} Total Heat
       </div>
     </div>
   );
