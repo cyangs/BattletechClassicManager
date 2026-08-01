@@ -64,6 +64,8 @@ class DiceRollsResults:
     to_hit_2: int
     location_1: int | None = None
     location_2: int | None = None
+    tac_reroll_1: int | None = None
+    tac_reroll_2: int | None = None
 
 
 @dataclass
@@ -76,7 +78,7 @@ class ClusterHit:
     """
     location: str
     damage: int
-
+    critical_hit: bool = False
 
 @dataclass
 class WeaponShot:
@@ -85,15 +87,16 @@ class WeaponShot:
     Produced by :class:`FireCalculations`. ``target_number`` of ``None`` means
     the target was out of the weapon's range (an automatic miss).
     """
-    weapon: Weapon                          # The weapon that fired (source of stats)
-    target_number: Optional[int]            # Number needed to hit (None = out of range)
-    target_facing: str                      # The target's facing
-    range_band: Optional[RangeBand] = None  # SHORT/MEDIUM/LONG bracket for this shot
-    roll: int = 0                           # 2d6 to-hit total (0 when out of range)
+    weapon: Weapon                                   # The weapon that fired (source of stats)
+    target_number: Optional[int]                     # Number needed to hit (None = out of range)
+    target_facing: str                               # The target's facing
+    range_band: Optional[RangeBand] = None           # SHORT/MEDIUM/LONG bracket for this shot
+    roll: int = 0                                    # 2d6 to-hit total (0 when out of range)
     hit: bool = False
-    hit_location: Optional[str] = "Torso"   # Single hit location; None for a cluster spread
-    damage: int = 0                         # Damage dealt; 0 on a miss / out of range
-    all_rolls: Optional[DiceRollsResults] = None  # Raw dice; None when out of range
+    hit_location: Optional[str] = "Torso"            # Single hit location; None for a cluster spread
+    damage: int = 0                                  # Damage dealt; 0 on a miss / out of range
+    all_rolls: Optional[DiceRollsResults] = None     # Raw dice; None when out of range
+    critical_hit: bool = False                       # if the hit was a through armor crit or not.
 
     # Cluster weapons scatter their damage across several locations. For a
     # normal weapon these stay None and hit_location/damage describe the single
@@ -122,6 +125,7 @@ class FireCalculations:
         self.target_number = target_number
         self.target_facing = target_facing
         self.range_band = range_band
+        self.critical_hit = False
 
     def resolve(self) -> WeaponShot:
         """Roll out the shot and return the populated record."""
@@ -179,11 +183,19 @@ class FireCalculations:
             for group_size in groups:
                 """ simplify things and just roll 2D6; Dont track individual dice rolls """
                 cluster_location_roll = roll_1d6() + roll_1d6()
+
+                """ Cluster through-critical hit resolution"""
+                """ TODO: Refactor so not duplicating logic"""
+                critical_hit = cluster_location_roll == 2
+                if critical_hit:
+                    cluster_location_roll = roll_1d6() + roll_1d6()
+
                 cluster_hit_location = self._hit_location(cluster_location_roll)
                 group_hits.append(
                     ClusterHit(
                         location=cluster_hit_location,
                         damage=group_size * damage_per_missile,
+                        critical_hit=critical_hit,
                     )
                 )
 
@@ -209,13 +221,25 @@ class FireCalculations:
         all_rolls.location_1 = hit_location_roll_1
         all_rolls.location_2 = hit_location_roll_2
 
+        hit_location_roll = hit_location_roll_1 + hit_location_roll_2
+
+        """ Through armor critical resolution """
+        critical_hit = hit_location_roll == 2
+        if critical_hit:
+            tac_roll_1 = roll_1d6()
+            tac_roll_2 = roll_1d6()
+            hit_location_roll = tac_roll_1 + tac_roll_2
+            all_rolls.tac_reroll_1 = tac_roll_1
+            all_rolls.tac_reroll_2 = tac_roll_2
+
         return self._shot(
             target_number=target_number,
             roll=to_hit_roll,
             hit=True,
-            hit_location=self._hit_location(hit_location_roll_1 + hit_location_roll_2),
+            hit_location=self._hit_location(hit_location_roll),
             damage=self._effective_damage(),
             all_rolls=all_rolls,
+            critical_hit=critical_hit,
         )
 
     def _shot(self, **overrides) -> WeaponShot:
@@ -229,6 +253,7 @@ class FireCalculations:
             "target_number": self.target_number,
             "target_facing": self.target_facing,
             "range_band": self.range_band,
+            "critical_hit": self.critical_hit,
         }
         fields.update(overrides)
         return WeaponShot(**fields)
@@ -288,6 +313,7 @@ def serialize_shot(shot: WeaponShot) -> dict:
         "hit": shot.hit,
         "hit_location": shot.hit_location,
         "damage": shot.damage,
+        "critical_hit": shot.critical_hit,
         "all_rolls": asdict(shot.all_rolls) if shot.all_rolls else None,
         # Cluster breakdown (None for normal weapons).
         "cluster_roll": shot.cluster_roll,

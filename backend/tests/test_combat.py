@@ -179,10 +179,10 @@ class FireCalculationsTest(unittest.TestCase):
         self.assertEqual(shot.hit_location, "Miss")
 
     def test_left_side_facing_uses_left_table(self):
-        with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 1, 1)):
-            # to-hit dice 6+6=12 (hit), location dice 1+1=2
+        with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 1, 4)):
+            # to-hit dice 6+6=12 (hit), location dice 1+4=5 (not a 2, so no crit)
             shot = self._shot(target_number=7, facing="Left Side")
-        self.assertEqual(shot.hit_location, LEFT_SIDE_LOCATION_TABLE[2])
+        self.assertEqual(shot.hit_location, LEFT_SIDE_LOCATION_TABLE[5])
 
     def test_right_side_facing_uses_right_table(self):
         with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 3, 3)):
@@ -230,7 +230,7 @@ class FireCalculationsTest(unittest.TestCase):
         self.assertEqual(d["range_band"], "MEDIUM")  # enum label, not the enum
         self.assertEqual(sorted(d.keys()), [
             "all_rolls", "cluster_hits", "cluster_hits_landed", "cluster_roll",
-            "damage", "hit", "hit_location",
+            "critical_hit", "damage", "hit", "hit_location",
             "range_band", "roll", "target_facing", "target_number", "weapon",
         ])
         json.dumps(d)  # must not raise
@@ -239,7 +239,7 @@ class FireCalculationsTest(unittest.TestCase):
         # LRM 20 (cluster, cluster_damage 5). Forced dice: to-hit 6+6=12 (hit),
         # cluster roll 4+5=9 -> 16 points on the size-20 table, split 5/5/5/1
         # across four independently-rolled locations (3+4=7 -> Center Torso).
-        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=0)
+        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=20)
         dice = FixedDice(6, 6, 4, 5, 3, 4, 3, 4, 3, 4, 3, 4)
         with mock.patch.object(fire_calculations, "roll_1d6", dice):
             shot = FireCalculations(
@@ -273,7 +273,7 @@ class FireCalculationsTest(unittest.TestCase):
         self.assertEqual([h.damage for h in shot.cluster_hits], [2, 2, 2, 2, 2])
 
     def test_cluster_shot_serializes_to_json(self):
-        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=0)
+        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=20)
         dice = FixedDice(6, 6, 4, 5, 3, 4, 3, 4, 3, 4, 3, 4)
         with mock.patch.object(fire_calculations, "roll_1d6", dice):
             shot = FireCalculations(
@@ -284,6 +284,57 @@ class FireCalculationsTest(unittest.TestCase):
         self.assertEqual(d["cluster_hits_landed"], 16)
         self.assertEqual([h["damage"] for h in d["cluster_hits"]], [5, 5, 5, 1])
         json.dumps(d)  # must not raise
+
+    # -- critical hits ---------------------------------------------------
+
+    def test_critical_hit_rerolls_location_and_flags(self):
+        # A natural 2 on the hit-location roll is a through-armor crit: flag it
+        # and reroll the location. Dice: to-hit 6+6=12 (hit), location 1+1=2
+        # (crit), reroll 3+4=7 -> Center Torso.
+        weapon = _weapon(name="ML", damage=5)
+        with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 1, 1, 3, 4)):
+            shot = FireCalculations(
+                weapon=weapon, target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.SHORT,
+            ).resolve()
+        self.assertTrue(shot.hit)
+        self.assertTrue(shot.critical_hit)
+        self.assertEqual((shot.all_rolls.location_1, shot.all_rolls.location_2), (1, 1))
+        self.assertEqual((shot.all_rolls.tac_reroll_1, shot.all_rolls.tac_reroll_2), (3, 4))
+        self.assertEqual(shot.hit_location, FRONT_REAR_LOCATION_TABLE[7])
+        self.assertTrue(serialize_shot(shot)["critical_hit"])  # boolean reaches the UI
+
+    def test_non_critical_hit_has_no_reroll(self):
+        weapon = _weapon(name="ML", damage=5)
+        with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 3, 4)):
+            shot = FireCalculations(
+                weapon=weapon, target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.SHORT,
+            ).resolve()
+        self.assertTrue(shot.hit)
+        self.assertFalse(shot.critical_hit)
+        self.assertIsNone(shot.all_rolls.tac_reroll_1)
+        self.assertIsNone(shot.all_rolls.tac_reroll_2)
+        self.assertFalse(serialize_shot(shot)["critical_hit"])
+
+    def test_cluster_critical_hit_flags_individual_clusters(self):
+        # LRM20: to-hit 6+6=12 (hit), cluster roll 1+1=2 -> 6 hits on size-20
+        # table. damage_per_missile 1, missiles_per_group 5 -> groups [5, 1].
+        # First cluster location 1+1=2 (crit) -> reroll 3+4=7; second 3+4=7 (no crit).
+        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=20)
+        dice = FixedDice(6, 6, 1, 1, 1, 1, 3, 4, 3, 4)
+        with mock.patch.object(fire_calculations, "roll_1d6", dice):
+            shot = FireCalculations(
+                weapon=weapon, target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.LONG,
+            ).resolve()
+        self.assertTrue(shot.hit)
+        self.assertEqual(shot.cluster_roll, 2)
+        self.assertEqual(shot.cluster_hits_landed, 6)
+        self.assertEqual([h.damage for h in shot.cluster_hits], [5, 1])
+        self.assertEqual([h.critical_hit for h in shot.cluster_hits], [True, False])
+        self.assertEqual(shot.cluster_hits[0].location, FRONT_REAR_LOCATION_TABLE[7])
+        self.assertTrue(serialize_shot(shot)["cluster_hits"][0]["critical_hit"])
 
 
 class ResolveFireTest(unittest.TestCase):

@@ -959,7 +959,7 @@ function Sessions({ sessions, mechs, reload }) {
                     {inProgress ? (
                       <button
                         onClick={runTurn}
-                        className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 rounded text-white font-bold shadow-md"
+                        className="px-9 py-2.5 bg-green-600 hover:bg-green-500 rounded text-white font-bold shadow-md"
                       >
                         ▶ Run Turn
                       </button>
@@ -974,7 +974,7 @@ function Sessions({ sessions, mechs, reload }) {
                     )}
                     <button
                       onClick={() => setDetailView((v) => (v === 'history' ? 'combat' : 'history'))}
-                      className={`text-xs px-3 py-1.5 rounded border ${
+                      className={`px-5 py-2.5 bg-sky-600 hover:bg-sky-500 rounded text-white font-bold shadow-md ${
                         detailView === 'history'
                           ? 'bg-amber-950/40 border-amber-700/50 text-amber-400'
                           : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-300'
@@ -987,16 +987,18 @@ function Sessions({ sessions, mechs, reload }) {
                 {inProgress && (
                   <button
                     onClick={endSession}
-                    className="text-xs px-3 py-1.5 bg-orange-950/60 border border-orange-900 hover:bg-orange-900/60 rounded text-orange-300"
+                      className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 rounded text-white font-bold shadow-md"
+
+                    // className="text-xs px-3 py-1.5 bg-orange-950/60 border border-orange-900 hover:bg-orange-900/60 rounded text-orange-300"
                   >
                     ⏹ End Session
                   </button>
                 )}
                 <button
                   onClick={() => deleteSession(selected.id)}
-                  className="text-xs px-3 py-1.5 bg-red-950/60 border border-red-900 hover:bg-red-900/60 rounded text-red-400"
+                  className="px-3 py-2.5 bg-red-600 hover:bg-red-500 rounded text-white font-bold shadow-md"
                 >
-                  Delete
+                  Delete Session
                 </button>
               </div>
             </div>
@@ -1006,7 +1008,7 @@ function Sessions({ sessions, mechs, reload }) {
             {completed || detailView === 'history' ? (
               <SessionHistory events={selected.events ?? []} units={selected.mechs} />
             ) : inProgress ? (
-              <div className="flex-1 p-6 overflow-y-auto max-w-screen-2xl w-full mx-auto space-y-4">
+              <div className="flex-1 p-6 overflow-y-auto max-w-[1800px] w-full mx-auto space-y-4">
                 {enemyUnits.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                     <span className="uppercase tracking-wider text-red-400/80 font-bold">
@@ -1299,7 +1301,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
   };
 
   return (
-    <div className="border border-gray-800 rounded-lg bg-gray-950 p-4 flex gap-4">
+    <div className="border border-gray-800 rounded-lg bg-gray-950 p-4 flex gap-4 w-full">
       {/* Left: mech + selectable weapons */}
       <div className="flex-1 min-w-0 max-w-md">
         <div className="mb-3">
@@ -1308,17 +1310,17 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
               <span className="text-white font-bold truncate">{unit.name} {unit.model ?? mech?.model ?? ''}</span>
               <TeamBadge team={unit.team} />
             </div>
-            <span className="text-xs text-gray-500 font-mono uppercase shrink-0">
+            <span className="text-sm text-gray-500 font-mono uppercase shrink-0">
               {unit.tonnage ?? '—'}t · {unit.tech_base ?? '—'}
             </span>
           </div>
-          <div className="text-xs text-gray-400 font-mono uppercase mt-2">
+          <div className="text-sm text-gray-400 font-mono uppercase mt-2">
             {unit.pilot_name ? `${unit.pilot_name} · ` : ''}Gunnery {unit.pilot_gunnery_skill ?? 4}
           </div>
         </div>
 
         {instances.length === 0 ? (
-          <div className="text-xs text-gray-500">No weapons mounted on this chassis.</div>
+          <div className="text-sm text-gray-500">No weapons mounted on this chassis.</div>
         ) : (
           <div className="space-y-1.5">
             {instances.map((inst) => {
@@ -1394,7 +1396,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       {/* Middle: target selection */}
       <div className="w-56 shrink-0 border-l border-gray-800 pl-4 space-y-3">
         <div>
-          <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
+          <label className="block text-[14px] uppercase tracking-wider text-red-400/80 mb-1">
             Target
           </label>
           {needsTarget ? (
@@ -1406,7 +1408,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
               <option value="">Select Target</option>
               {enemies.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.name} ({e.tonnage ?? '—'}t)
+                  {e.name} ({e.tonnage ?? '—'}t) - {e.pilot_name}
                 </option>
               ))}
             </select>
@@ -1485,20 +1487,20 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
 
       {/* Right: fire results */}
       {/* Arbitrarily Defined column width here since this is an important data column */}
-      <div className="w-[475px] shrink-0 border-l border-gray-800 pl-4">
+      <div className="w-[575px] shrink-0 border-l border-gray-800 pl-4">
         {result ? (
           <FireResults result={result} />
         ) : (
-          <div className="text-xs text-gray-600 italic">No fire resolved yet.</div>
+          <div className="text-base text-gray-600 italic">No fire resolved yet.</div>
         )}
       </div>
 
       {/* Far right: damage totalled by target hit location */}
-      <div className="w-60 shrink-0 border-l border-gray-800 pl-4 text-right">
+      <div className="w-72 border-l border-gray-800 pl-4 flex flex-col items-end">
         {result ? (
           <DamageByLocation result={result} />
         ) : (
-          <div className="text-xs text-gray-600 italic">No damage yet.</div>
+          <div className="text-base text-gray-600 italic">No damage yet.</div>
         )}
       </div>
     </div>
@@ -1524,8 +1526,8 @@ function DamageByLocation({ result }) {
   const total = rows.reduce((sum, [, dmg]) => sum + dmg, 0);
 
   return (
-    <div className="text-xs space-y-2 text-right">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80">
+    <div className="text-base space-y-2 text-right">
+      <div className="text-large font-bold uppercase tracking-wider text-amber-500/80">
         Damage by Location
       </div>
       {rows.length === 0 ? (
@@ -1598,7 +1600,7 @@ function FireResults({ result }) {
     <div className="text-xs space-y-2">
       {result.target && (
         <div className="text-gray-300">
-          Target: <span className="text-red-400 font-bold">{result.target}</span>
+          Target: <span className="text-sm text-red-400 font-bold">{result.target}</span>
         </div>
       )}
       {result.facing && (
@@ -1623,10 +1625,10 @@ function FireResults({ result }) {
             {/* Weapon + outcome */}
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate text-gray-200 font-medium text-medium">{s.weapon}</div>
+                <div className="truncate text-gray-200 font-medium text-lg">{s.weapon}</div>
               </div>
               <span
-                className={`shrink-0 w-36 font-bold uppercase px-1.5 py-0.5 rounded ${
+                className={`shrink-0 w-48 font-bold uppercase px-1.5 py-0.5 rounded ${
                   s.hit
                     ? 'bg-green-900/60 text-green-300 border border-green-800'
                     : 'bg-red-950/60 text-red-400 border border-red-900'
@@ -1639,20 +1641,21 @@ function FireResults({ result }) {
             {/* Hit location(s) — a single badge, or a cluster spread */}
             {s.hit && s.cluster_hits ? (
               <div className="mt-1.5 space-y-1">
-                <div className="text-[10px] font-mono text-gray-500 text-right">
+                <div className="text-[10px] font-mono text-gray-500 text-right pr-9">
                   Cluster: rolled {s.cluster_roll} → {s.cluster_hits_landed} pts
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {s.cluster_hits.map((h, j) => (
                       <span
                           key={j}
-                          className={`shrink-0 w-36 bold uppercase px-1.5 py-0.5 rounded border ${
-                              h.location.toLowerCase() === "head"
+                          className={`shrink-0 w-48 bold uppercase px-1.5 py-0.5 rounded border ${
+                              h.location.toLowerCase() === "head" || h.critical_hit
                                   ? "bg-red-900/40 text-red-300 border-red-800"
                                   : "bg-yellow-900/40 text-yellow-300 border-yellow-800"
                           }`}
                       >
                     {h.damage} → {h.location}
+                    {h.critical_hit && " ✶ CRIT"}
                   </span>
                   ))}
                 </div>
@@ -1661,12 +1664,13 @@ function FireResults({ result }) {
               <div className="mt-1.5 flex justify-end">
                 <span
                     className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${
-                        s.hit_location.toLowerCase() === "head"
+                        s.hit_location.toLowerCase() === "head" || s.critical_hit
                             ? "bg-red-900/40 text-red-300 border-red-800"
                             : "bg-yellow-900/40 text-yellow-300 border-yellow-800"
                     }`}
                 >
                   {s.hit_location}
+                  {s.critical_hit && " ✶ CRIT"}
                 </span>
               </div>
             ) : null}
@@ -1694,6 +1698,16 @@ function FireResults({ result }) {
                     <Die value={s.all_rolls.location_2} />
                     <span className="text-gray-600">=</span>
                     <span className="font-bold text-gray-100">{s.all_rolls.location_1 + s.all_rolls.location_2}</span>
+                  </div>
+                )}
+                {/* Through-armor critical reroll: only rolled when the location roll is a natural 2 */}
+                {s.all_rolls.tac_reroll_1 != null && s.all_rolls.tac_reroll_2 != null && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-16 shrink-0 uppercase text-red-500">Critical</span>
+                    <Die value={s.all_rolls.tac_reroll_1} />
+                    <Die value={s.all_rolls.tac_reroll_2} />
+                    <span className="text-gray-600">=</span>
+                    <span className="font-bold text-red-300">{s.all_rolls.tac_reroll_1 + s.all_rolls.tac_reroll_2}</span>
                   </div>
                 )}
               </div>

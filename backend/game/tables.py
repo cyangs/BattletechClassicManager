@@ -1,5 +1,5 @@
 FRONT_REAR_LOCATION_TABLE = {
-    2: "Center Torso (Critical)",
+    2: "Center Torso (CRITICAL)",
     3: "Right Arm",
     4: "Right Arm",
     5: "Right Leg",
@@ -13,7 +13,7 @@ FRONT_REAR_LOCATION_TABLE = {
 }
 
 LEFT_SIDE_LOCATION_TABLE = {
-    2: "Left Torso (Critical)",
+    2: "Left Torso (CRITICAL)",
     3: "Left Leg",
     4: "Left Arm",
     5: "Left Arm",
@@ -27,7 +27,7 @@ LEFT_SIDE_LOCATION_TABLE = {
 }
 
 RIGHT_SIDE_LOCATION_TABLE = {
-    2: "Right Torso (Critical)",
+    2: "Right Torso (CRITICAL)",
     3: "Right Leg",
     4: "Right Arm",
     5: "Right Arm",
