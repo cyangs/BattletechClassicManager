@@ -1307,7 +1307,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
         <div className="mb-3">
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-white font-bold truncate">{unit.name} {unit.model ?? mech?.model ?? ''}</span>
+              <span className="text-2xl text-white font-bold truncate">{unit.name} {unit.model ?? mech?.model ?? ''}</span>
               <TeamBadge team={unit.team} />
             </div>
             <span className="text-sm text-gray-500 font-mono uppercase shrink-0">
@@ -1326,7 +1326,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
             {instances.map((inst) => {
               const isDisabled = disabledWeapons.has(inst.key);
               return (
-                <div key={inst.key} className="flex items-center gap-2">
+                <div key={inst.key} className="flex items-center gap-2 py-1">
                   <label
                     className={`flex flex-1 min-w-0 items-center gap-2 text-sm ${
                       isDisabled
@@ -1341,7 +1341,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
                       disabled={isDisabled || firedThisTurn}
                       className="w-4 h-4 accent-amber-600 disabled:opacity-40"
                     />
-                    <span className="truncate">{inst.name}</span>
+                    <span className="text-sm truncate font-mono">{inst.name}</span>
                     <span className="text-xs text-gray-500 font-mono">· {inst.location}</span>
                     <span className="text-xs text-gray-500 font-mono">· {inst.heat}</span>
                   </label>
@@ -1396,7 +1396,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       {/* Middle: target selection */}
       <div className="w-56 shrink-0 border-l border-gray-800 pl-4 space-y-3">
         <div>
-          <label className="block text-[14px] uppercase tracking-wider text-red-400/80 mb-1">
+          <label className="text-base uppercase tracking-wider text-red-400/80 mb-1 font-bold">
             Target
           </label>
           {needsTarget ? (
@@ -1599,8 +1599,8 @@ function FireResults({ result }) {
   return (
     <div className="text-xs space-y-2">
       {result.target && (
-        <div className="text-gray-300">
-          Target: <span className="text-sm text-red-400 font-bold">{result.target}</span>
+        <div className="text-base text-gray-300 font-bold">
+          Target: <span className="text-base text-red-400 font-bold">{result.target}</span>
         </div>
       )}
       {result.facing && (
