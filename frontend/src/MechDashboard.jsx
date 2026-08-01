@@ -1214,7 +1214,12 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
   const target = enemies.find((e) => String(e.id) === String(targetUnitId)) ?? null;
   const needsTarget = enemies.length > 0;
 
-  const fire = () => {
+  // Every weapon instance the unit can still fire this turn (disabled ones excluded).
+  const fireableInstances = instances.filter((inst) => !disabledWeapons.has(inst.key));
+
+  // Resolve a fire for the given weapon link ids (one entry per shot).
+  const doFire = (weaponLinkIds) => {
+    if (weaponLinkIds.length === 0) return;
     setFiring(true);
     fetch(`${API}/api/sessions/${sessionId}/fire`, {
       method: 'POST',
@@ -1222,11 +1227,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       body: JSON.stringify({
         mech_id: unit.mech_id,
         session_mech_id: unit.id,
-        // One link id per selected instance; a link fires once per entry.
-        // Disabled instances can never be selected, so none leak in here.
-        weapon_link_ids: instances
-          .filter((inst) => selected.has(inst.key) && !disabledWeapons.has(inst.key))
-          .map((inst) => inst.linkId),
+        // One link id per instance fired; a link fires once per entry.
+        weapon_link_ids: weaponLinkIds,
         pilot_gunnery_skill: unit.pilot_gunnery_skill ?? 4,
         target_mech_id: target ? target.mech_id : null,
         facing,
@@ -1244,6 +1246,20 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       })
       .catch((err) => alert('Error firing weapons: ' + err.message))
       .finally(() => setFiring(false));
+  };
+
+  // Fire only the checked (and enabled) weapons.
+  const fire = () =>
+    doFire(
+      fireableInstances
+        .filter((inst) => selected.has(inst.key))
+        .map((inst) => inst.linkId),
+    );
+
+  // Alpha strike: select and fire every enabled weapon at once.
+  const alphaStrike = () => {
+    setSelected(new Set(fireableInstances.map((inst) => inst.key)));
+    doFire(fireableInstances.map((inst) => inst.linkId));
   };
 
   // Undo this turn's fire: drop the logged event so the unit can fire again.
@@ -1296,7 +1312,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
               {unit.tonnage ?? '—'}t · {unit.tech_base ?? '—'}
             </span>
           </div>
-          <div className="text-xs text-gray-400 font-mono uppercase mt-0.5">
+          <div className="text-xs text-gray-400 font-mono uppercase mt-2">
             {unit.pilot_name ? `${unit.pilot_name} · ` : ''}Gunnery {unit.pilot_gunnery_skill ?? 4}
           </div>
         </div>
@@ -1345,13 +1361,23 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
           </div>
         )}
 
-        <button
-          onClick={fire}
-          disabled={selected.size === 0 || firing || firedThisTurn || (needsTarget && !target)}
-          className="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-white text-sm font-bold uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {firedThisTurn ? '✓ Fired This Turn' : '🔥 Fire Weapons'}
-        </button>
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={fire}
+            disabled={selected.size === 0 || firing || firedThisTurn || (needsTarget && !target)}
+            className="px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-white text-sm font-bold uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {firedThisTurn ? '✓ Fired This Turn' : '🔥 Fire Weapons'}
+          </button>
+          <button
+            onClick={alphaStrike}
+            disabled={fireableInstances.length === 0 || firing || firedThisTurn || (needsTarget && !target)}
+            title="Fire every weapon at once"
+            className="px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm font-bold uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ☢ Alpha Strike
+          </button>
+        </div>
 
         {firedThisTurn && (
           <div className="mt-2">
@@ -1597,7 +1623,7 @@ function FireResults({ result }) {
             {/* Weapon + outcome */}
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate text-gray-200 font-medium">{s.weapon}</div>
+                <div className="truncate text-gray-200 font-medium text-medium">{s.weapon}</div>
               </div>
               <span
                 className={`shrink-0 w-36 font-bold uppercase px-1.5 py-0.5 rounded ${
