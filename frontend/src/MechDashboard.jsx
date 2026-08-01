@@ -1618,18 +1618,28 @@ function FireResults({ result }) {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {s.cluster_hits.map((h, j) => (
-                    <span
-                      key={j}
-                      className="shrink-0 w-36 bold uppercase px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-800"
-                    >
-                      {h.damage} → {h.location}
-                    </span>
+                      <span
+                          key={j}
+                          className={`shrink-0 w-36 bold uppercase px-1.5 py-0.5 rounded border ${
+                              h.location.toLowerCase() === "head"
+                                  ? "bg-red-900/40 text-red-300 border-red-800"
+                                  : "bg-yellow-900/40 text-yellow-300 border-yellow-800"
+                          }`}
+                      >
+                    {h.damage} → {h.location}
+                  </span>
                   ))}
                 </div>
               </div>
             ) : s.hit ? (
               <div className="mt-1.5 flex justify-end">
-                <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-800">
+                <span
+                    className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                        s.hit_location.toLowerCase() === "head"
+                            ? "bg-red-900/40 text-red-300 border-red-800"
+                            : "bg-yellow-900/40 text-yellow-300 border-yellow-800"
+                    }`}
+                >
                   {s.hit_location}
                 </span>
               </div>

@@ -43,23 +43,23 @@ from game.tables import (
 
 
 def _weapon(
-    name="MediumLaser",
-    full_name="Medium Laser",
-    damage=5,
-    heat=3,
-    short_range=3,
-    medium_range=6,
-    long_range=9,
-    variable_damage=False,
-    cluster=False,
-    short_range_damage=None,
-    medium_range_damage=None,
-    long_range_damage=None,
-    short_range_modifier=None,
-    medium_range_modifier=None,
-    long_range_modifier=None,
-    num_shots=None,
-    cluster_damage=None,
+        name="MediumLaser",
+        full_name="Medium Laser",
+        damage=5,
+        heat=3,
+        short_range=3,
+        medium_range=6,
+        long_range=9,
+        variable_damage=False,
+        cluster=False,
+        short_range_damage=None,
+        medium_range_damage=None,
+        long_range_damage=None,
+        short_range_modifier=None,
+        medium_range_modifier=None,
+        long_range_modifier=None,
+        num_shots=None,
+        cluster_damage=None,
 ):
     """Build a stand-in for a ``Weapon`` ORM row (attribute access).
 
@@ -226,8 +226,8 @@ class FireCalculationsTest(unittest.TestCase):
                 range_band=RangeBand.MEDIUM,
             ).resolve()
         d = serialize_shot(shot)
-        self.assertEqual(d["weapon"], "Medium Laser")   # display name, not the object
-        self.assertEqual(d["range_band"], "MEDIUM")     # enum label, not the enum
+        self.assertEqual(d["weapon"], "Medium Laser")  # display name, not the object
+        self.assertEqual(d["range_band"], "MEDIUM")  # enum label, not the enum
         self.assertEqual(sorted(d.keys()), [
             "all_rolls", "cluster_hits", "cluster_hits_landed", "cluster_roll",
             "damage", "hit", "hit_location",
@@ -247,12 +247,30 @@ class FireCalculationsTest(unittest.TestCase):
                 target_facing="Front/Rear", range_band=RangeBand.LONG,
             ).resolve()
         self.assertTrue(shot.hit)
-        self.assertIsNone(shot.hit_location)              # cluster spread, no single location
+        self.assertIsNone(shot.hit_location)  # cluster spread, no single location
         self.assertEqual(shot.cluster_roll, 9)
         self.assertEqual(shot.cluster_hits_landed, 16)
-        self.assertEqual(shot.damage, 16)                 # total across the spread
+        self.assertEqual(shot.damage, 16)  # total across the spread
         self.assertEqual([h.damage for h in shot.cluster_hits], [5, 5, 5, 1])
         self.assertTrue(all(h.location == FRONT_REAR_LOCATION_TABLE[7] for h in shot.cluster_hits))
+
+    def test_cluster_srm6_splits_damage_across_locations(self):
+        # SRM 6 (cluster, cluster_damage 5). Forced dice: to-hit 6+6=12 (hit),
+        # cluster roll 4+5=9 -> 5 missiles on the size-6 table. 5 shots each.
+        # across four independently-rolled locations (3+4=7 -> Center Torso).
+        weapon = _weapon(name="SRM6", full_name="SRM 6", cluster=True, num_shots=6, cluster_damage=2, damage=12)
+        dice = FixedDice(6, 6, 4, 5, 3, 4, 3, 4, 3, 4, 3, 4)
+        with mock.patch.object(fire_calculations, "roll_1d6", dice):
+            shot = FireCalculations(
+                weapon=weapon, target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.LONG,
+            ).resolve()
+        self.assertTrue(shot.hit)
+        self.assertIsNone(shot.hit_location)  # cluster spread, no single location
+        self.assertEqual(shot.cluster_roll, 9)
+        self.assertEqual(shot.cluster_hits_landed, 5)
+        self.assertEqual(shot.damage, 10)  # total across the spread
+        self.assertEqual([h.damage for h in shot.cluster_hits], [2, 2, 2, 2, 2])
 
     def test_cluster_shot_serializes_to_json(self):
         weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=0)
@@ -388,8 +406,8 @@ class ResolveFireTest(unittest.TestCase):
         resolver = _resolver(_weapon(name="ML"))
         result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4, target_name="Locust")
         for key in (
-            "attacker", "target", "target_movement_modifier", "shots",
-            "hits", "misses", "total_damage", "total_heat", "unresolved_weapons",
+                "attacker", "target", "target_movement_modifier", "shots",
+                "hits", "misses", "total_damage", "total_heat", "unresolved_weapons",
         ):
             self.assertIn(key, result)
         self.assertEqual(result["attacker"], "Atlas")
