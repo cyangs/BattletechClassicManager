@@ -1663,7 +1663,7 @@ function FireResults({ result }) {
             ) : s.hit ? (
               <div className="mt-1.5 flex justify-end">
                 <span
-                    className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                    className={`shrink-0 w-48 bold uppercase px-1.5 py-0.5 rounded border ${
                         s.hit_location.toLowerCase() === "head" || s.critical_hit
                             ? "bg-red-900/40 text-red-300 border-red-800"
                             : "bg-yellow-900/40 text-yellow-300 border-yellow-800"
