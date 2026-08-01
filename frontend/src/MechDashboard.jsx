@@ -520,7 +520,7 @@ function WeaponsLibrary({ weapons, reload }) {
 
   return (
     <div className="h-full overflow-y-auto p-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-screen-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-amber-500">Weapons Master Catalog</h1>
           <div className="flex gap-3">
@@ -548,8 +548,8 @@ function WeaponsLibrary({ weapons, reload }) {
                 <th className="px-4 py-3">Damage</th>
                 <th className="px-4 py-3">Heat</th>
                 <th className="px-4 py-3">Ammo</th>
-                <th className="px-4 py-3">Range (min / S / M / L)</th>
-                <th className="px-4 py-3">Range Mods (S / M / L)</th>
+                <th className="px-4 py-3">Range Brackets (min / S / M / L)</th>
+                <th className="px-4 py-3">Hit Modifiers at Range (S / M / L)</th>
                 <th className="px-4 py-3">Cluster (shots × dmg)</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -1458,7 +1458,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       </div>
 
       {/* Right: fire results */}
-      <div className="w-96 shrink-0 border-l border-gray-800 pl-4">
+      {/* Arbitrarily Defined column width here since this is an important data column */}
+      <div className="w-[475px] shrink-0 border-l border-gray-800 pl-4">
         {result ? (
           <FireResults result={result} />
         ) : (
@@ -1467,7 +1468,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       </div>
 
       {/* Far right: damage totalled by target hit location */}
-      <div className="w-56 shrink-0 border-l border-gray-800 pl-4">
+      <div className="w-60 shrink-0 border-l border-gray-800 pl-4 text-right">
         {result ? (
           <DamageByLocation result={result} />
         ) : (
@@ -1483,7 +1484,13 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
 function DamageByLocation({ result }) {
   const byLocation = {};
   (result.shots ?? []).forEach((s) => {
-    if (s.hit && s.hit_location) {
+    if (!s.hit) return;
+    if (s.cluster_hits) {
+      // Cluster weapon: each cluster landed its own damage on its own location.
+      s.cluster_hits.forEach((h) => {
+        byLocation[h.location] = (byLocation[h.location] || 0) + (h.damage || 0);
+      });
+    } else if (s.hit_location) {
       byLocation[s.hit_location] = (byLocation[s.hit_location] || 0) + (s.damage || 0);
     }
   });
@@ -1491,7 +1498,7 @@ function DamageByLocation({ result }) {
   const total = rows.reduce((sum, [, dmg]) => sum + dmg, 0);
 
   return (
-    <div className="text-xs space-y-2">
+    <div className="text-xs space-y-2 text-right">
       <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80">
         Damage by Location
       </div>
@@ -1503,14 +1510,14 @@ function DamageByLocation({ result }) {
             {rows.map(([location, dmg]) => (
               <div
                 key={location}
-                className="flex items-center justify-between gap-2 rounded border border-gray-800 bg-gray-900/40 px-2 py-1"
+                className="flex items-center justify-end gap-2 rounded border border-gray-800 bg-gray-900/40 px-2 py-1"
               >
                 <span className="truncate text-gray-200">{location}</span>
                 <span className="shrink-0 font-bold text-amber-400">{dmg}</span>
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between border-t border-gray-800 pt-1.5 font-bold text-amber-400">
+          <div className="flex items-center justify-end gap-2 border-t border-gray-800 pt-1.5 font-bold text-amber-400">
             <span>Total</span>
             <span>{total}</span>
           </div>
@@ -1593,7 +1600,7 @@ function FireResults({ result }) {
                 <div className="truncate text-gray-200 font-medium">{s.weapon}</div>
               </div>
               <span
-                className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                className={`shrink-0 w-36 font-bold uppercase px-1.5 py-0.5 rounded ${
                   s.hit
                     ? 'bg-green-900/60 text-green-300 border border-green-800'
                     : 'bg-red-950/60 text-red-400 border border-red-900'
@@ -1603,14 +1610,30 @@ function FireResults({ result }) {
               </span>
             </div>
 
-            {/* Hit location — shown below the outcome, styled to match */}
-            {s.hit && (
+            {/* Hit location(s) — a single badge, or a cluster spread */}
+            {s.hit && s.cluster_hits ? (
+              <div className="mt-1.5 space-y-1">
+                <div className="text-[10px] font-mono text-gray-500 text-right">
+                  Cluster: rolled {s.cluster_roll} → {s.cluster_hits_landed} pts
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  {s.cluster_hits.map((h, j) => (
+                    <span
+                      key={j}
+                      className="shrink-0 w-36 bold uppercase px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-800"
+                    >
+                      {h.damage} → {h.location}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : s.hit ? (
               <div className="mt-1.5 flex justify-end">
                 <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-800">
                   {s.hit_location}
                 </span>
               </div>
-            )}
+            ) : null}
 
             {/* Individual 2d6 rolls that make up the shot */}
             {s.all_rolls ? (
@@ -1623,7 +1646,9 @@ function FireResults({ result }) {
                   <span className="text-gray-600">=</span>
                   <span className="font-bold text-gray-100">{s.roll}</span>
                   <span className="text-gray-600">vs</span>
-                  <span className="font-bold text-amber-400">Need {s.target_number}+</span>
+                  <span className="font-bold text-amber-400">
+                    {s.target_number <= 2 ? "AUTO HIT" : `Need ${s.target_number}+`}
+                  </span>
                 </div>
                 {/* Location roll: only rolled on a hit */}
                 {s.hit && s.all_rolls.location_1 != null && (

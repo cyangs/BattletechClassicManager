@@ -8,11 +8,13 @@ where the tests are run from::
     # or, from the repo root:
     python -m pytest backend/tests/test_combat.py
 
-The dice roller (``roll_1d6``) is monkeypatched in most tests so results are
-deterministic instead of relying on ``random``. The database is replaced with an
-in-memory ``FakeWeaponRepository`` so no real DB connection is required.
+The dice roller (``roll_1d6``) lives in :mod:`game.fire_calculations` and is
+monkeypatched there in most tests so results are deterministic instead of
+relying on ``random``. The database is replaced with an in-memory
+``FakeWeaponRepository`` so no real DB connection is required.
 """
 
+import json
 import os
 import sys
 import types
@@ -22,14 +24,21 @@ from unittest import mock
 _BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, os.path.abspath(_BACKEND_DIR))
 
-from game import combat
+from game import fire_calculations
 from game.combat import (
     CombatResolver,
     DiceRollsResults,
+    FireCalculations,
     RangeBand,
     WeaponShot,
     roll_1d6,
     roll_2d6,
+    serialize_shot,
+)
+from game.tables import (
+    FRONT_REAR_LOCATION_TABLE,
+    LEFT_SIDE_LOCATION_TABLE,
+    RIGHT_SIDE_LOCATION_TABLE,
 )
 
 
@@ -46,8 +55,17 @@ def _weapon(
     short_range_damage=None,
     medium_range_damage=None,
     long_range_damage=None,
+    short_range_modifier=None,
+    medium_range_modifier=None,
+    long_range_modifier=None,
+    num_shots=None,
+    cluster_damage=None,
 ):
-    """Build a stand-in for a ``Weapon`` ORM row (attribute access)."""
+    """Build a stand-in for a ``Weapon`` ORM row (attribute access).
+
+    ``has_range_modifiers`` mirrors the real model's property so pulse-style
+    weapons exercise the range-modifier branch in ``WeaponShot``.
+    """
     return types.SimpleNamespace(
         name=name,
         full_name=full_name,
@@ -61,6 +79,15 @@ def _weapon(
         short_range_damage=short_range_damage,
         medium_range_damage=medium_range_damage,
         long_range_damage=long_range_damage,
+        short_range_modifier=short_range_modifier,
+        medium_range_modifier=medium_range_modifier,
+        long_range_modifier=long_range_modifier,
+        num_shots=num_shots,
+        cluster_damage=cluster_damage,
+        has_range_modifiers=any(
+            m is not None
+            for m in (short_range_modifier, medium_range_modifier, long_range_modifier)
+        ),
     )
 
 
@@ -93,12 +120,12 @@ class FixedDice:
 
 def _all_sixes():
     """Patch roll_1d6 so every 1d6 is a 6 (to-hit 12, location 12)."""
-    return mock.patch.object(combat, "roll_1d6", FixedDice(6))
+    return mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6))
 
 
 def _all_ones():
     """Patch roll_1d6 so every 1d6 is a 1 (to-hit 2 -> guaranteed miss)."""
-    return mock.patch.object(combat, "roll_1d6", FixedDice(1))
+    return mock.patch.object(fire_calculations, "roll_1d6", FixedDice(1))
 
 
 class DiceRollHelpersTest(unittest.TestCase):
@@ -118,16 +145,16 @@ class DiceRollsResultsTest(unittest.TestCase):
         self.assertIsNone(dice.location_2)
 
 
-class WeaponShotTest(unittest.TestCase):
-    def _shot(self, target_number, facing="Front/Rear", range_band="SHORT", damage=5):
-        return WeaponShot(
-            weapon="AC/20",
-            location="RT",
+class FireCalculationsTest(unittest.TestCase):
+    def _shot(self, target_number, facing="Front/Rear", range_band=RangeBand.SHORT, damage=5):
+        # Damage is derived from the weapon record on a hit, so the requested
+        # ``damage`` is baked into the stand-in weapon.
+        return FireCalculations(
+            weapon=_weapon(name="AC20", full_name="AC/20", damage=damage),
             target_number=target_number,
             target_facing=facing,
             range_band=range_band,
-            damage=damage,
-        )
+        ).resolve()
 
     def test_out_of_range_is_an_automatic_miss(self):
         shot = self._shot(target_number=None)
@@ -142,7 +169,7 @@ class WeaponShotTest(unittest.TestCase):
         self.assertTrue(shot.hit)
         self.assertEqual(shot.roll, 12)
         self.assertEqual(shot.damage, 20)
-        self.assertEqual(shot.hit_location, combat.FRONT_REAR_LOCATION_TABLE[12])
+        self.assertEqual(shot.hit_location, FRONT_REAR_LOCATION_TABLE[12])
 
     def test_miss_zeroes_damage(self):
         with _all_ones():  # to-hit 2 < 7
@@ -152,16 +179,93 @@ class WeaponShotTest(unittest.TestCase):
         self.assertEqual(shot.hit_location, "Miss")
 
     def test_left_side_facing_uses_left_table(self):
-        with mock.patch.object(combat, "roll_1d6", FixedDice(6, 6, 1, 1)):
+        with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 1, 1)):
             # to-hit dice 6+6=12 (hit), location dice 1+1=2
             shot = self._shot(target_number=7, facing="Left Side")
-        self.assertEqual(shot.hit_location, combat.LEFT_SIDE_LOCATION_TABLE[2])
+        self.assertEqual(shot.hit_location, LEFT_SIDE_LOCATION_TABLE[2])
 
     def test_right_side_facing_uses_right_table(self):
-        with mock.patch.object(combat, "roll_1d6", FixedDice(6, 6, 3, 3)):
+        with mock.patch.object(fire_calculations, "roll_1d6", FixedDice(6, 6, 3, 3)):
             # to-hit 12 (hit), location 3+3=6
             shot = self._shot(target_number=7, facing="Right Side")
-        self.assertEqual(shot.hit_location, combat.RIGHT_SIDE_LOCATION_TABLE[6])
+        self.assertEqual(shot.hit_location, RIGHT_SIDE_LOCATION_TABLE[6])
+
+    def test_weapon_range_modifier_is_applied_per_band(self):
+        # Variable pulse laser: -3 short, -2 medium, -1 long. The band-specific
+        # (signed) modifier is added to the incoming target number.
+        weapon = _weapon(name="Pulse", short_range_modifier=-3,
+                         medium_range_modifier=-2, long_range_modifier=-1)
+        expected_by_band = {
+            RangeBand.SHORT: 10 - 3,
+            RangeBand.MEDIUM: 10 - 2,
+            RangeBand.LONG: 10 - 1,
+        }
+        for band, expected in expected_by_band.items():
+            shot = FireCalculations(
+                weapon=weapon, target_number=10,
+                target_facing="Front/Rear", range_band=band,
+            ).resolve()
+            self.assertEqual(shot.target_number, expected, band)
+
+    def test_no_range_modifier_leaves_target_number_unchanged(self):
+        weapon = _weapon(name="ML")  # no per-band modifiers defined
+        shot = FireCalculations(
+            weapon=weapon, target_number=7,
+            target_facing="Front/Rear", range_band=RangeBand.SHORT,
+        ).resolve()
+        self.assertEqual(shot.target_number, 7)
+
+    def test_serialize_shot_is_json_safe(self):
+        # ``weapon`` (an ORM object) and ``range_band`` (an enum) must flatten to
+        # JSON-friendly values for the API response.
+        with _all_sixes():
+            shot = FireCalculations(
+                weapon=_weapon(name="ML", full_name="Medium Laser", damage=5),
+                target_number=7,
+                target_facing="Front/Rear",
+                range_band=RangeBand.MEDIUM,
+            ).resolve()
+        d = serialize_shot(shot)
+        self.assertEqual(d["weapon"], "Medium Laser")   # display name, not the object
+        self.assertEqual(d["range_band"], "MEDIUM")     # enum label, not the enum
+        self.assertEqual(sorted(d.keys()), [
+            "all_rolls", "cluster_hits", "cluster_hits_landed", "cluster_roll",
+            "damage", "hit", "hit_location",
+            "range_band", "roll", "target_facing", "target_number", "weapon",
+        ])
+        json.dumps(d)  # must not raise
+
+    def test_cluster_weapon_splits_damage_across_locations(self):
+        # LRM 20 (cluster, cluster_damage 5). Forced dice: to-hit 6+6=12 (hit),
+        # cluster roll 4+5=9 -> 16 points on the size-20 table, split 5/5/5/1
+        # across four independently-rolled locations (3+4=7 -> Center Torso).
+        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=0)
+        dice = FixedDice(6, 6, 4, 5, 3, 4, 3, 4, 3, 4, 3, 4)
+        with mock.patch.object(fire_calculations, "roll_1d6", dice):
+            shot = FireCalculations(
+                weapon=weapon, target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.LONG,
+            ).resolve()
+        self.assertTrue(shot.hit)
+        self.assertIsNone(shot.hit_location)              # cluster spread, no single location
+        self.assertEqual(shot.cluster_roll, 9)
+        self.assertEqual(shot.cluster_hits_landed, 16)
+        self.assertEqual(shot.damage, 16)                 # total across the spread
+        self.assertEqual([h.damage for h in shot.cluster_hits], [5, 5, 5, 1])
+        self.assertTrue(all(h.location == FRONT_REAR_LOCATION_TABLE[7] for h in shot.cluster_hits))
+
+    def test_cluster_shot_serializes_to_json(self):
+        weapon = _weapon(name="LRM20", cluster=True, num_shots=20, cluster_damage=5, damage=0)
+        dice = FixedDice(6, 6, 4, 5, 3, 4, 3, 4, 3, 4, 3, 4)
+        with mock.patch.object(fire_calculations, "roll_1d6", dice):
+            shot = FireCalculations(
+                weapon=weapon, target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.LONG,
+            ).resolve()
+        d = serialize_shot(shot)
+        self.assertEqual(d["cluster_hits_landed"], 16)
+        self.assertEqual([h["damage"] for h in d["cluster_hits"]], [5, 5, 5, 1])
+        json.dumps(d)  # must not raise
 
 
 class ResolveFireTest(unittest.TestCase):
@@ -227,12 +331,12 @@ class ResolveFireTest(unittest.TestCase):
 
     def test_modifiers_stack_into_target_number(self):
         resolver = _resolver(_weapon(name="ML"))
-        # gunnery 3 + movement 2 + terrain 1 + partial cover 1 + short bracket 0
+        # GATOR: gunnery 3 + attacker move 1 + target move 2 + additional 1 + short bracket 0
         result = resolver.resolve_fire(
             "Atlas", ["ML"], pilot_gunnery_skill=3, distance_modifier=2,
-            target_movement_modifier=2, intervening_terrain=1, partial_cover=True,
+            target_movement_modifier=2, self_movement_modifier=1, additional_modifier=1,
         )
-        self.assertEqual(result["shots"][0]["target_number"], 3 + 2 + 1 + 1)
+        self.assertEqual(result["shots"][0]["target_number"], 3 + 1 + 2 + 1)
         self.assertEqual(result["shots"][0]["range_band"], "SHORT")
 
     def test_target_number_does_not_compound_across_shots(self):
@@ -254,6 +358,7 @@ class ResolveFireTest(unittest.TestCase):
         self.assertFalse(shot["hit"])
         self.assertEqual(shot["damage"], 0)
         self.assertEqual(shot["hit_location"], "Target Out of Range")
+        self.assertIsNone(shot["range_band"])
         self.assertEqual(result["hits"], 0)
 
     # -- variable damage -------------------------------------------------
@@ -289,6 +394,13 @@ class ResolveFireTest(unittest.TestCase):
             self.assertIn(key, result)
         self.assertEqual(result["attacker"], "Atlas")
         self.assertEqual(result["target"], "Locust")
+
+    def test_result_is_json_serializable(self):
+        resolver = _resolver(_weapon(name="ML", full_name="Medium Laser"))
+        with _all_sixes():
+            result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4, distance_modifier=2)
+        json.dumps(result)  # must not raise: shots flatten weapon/range_band
+        self.assertIsInstance(result["shots"][0]["weapon"], str)
 
     def test_hits_plus_misses_equals_shot_count(self):
         resolver = _resolver(_weapon(name="ML"))

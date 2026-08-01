@@ -32,9 +32,7 @@ class Weapon(Base):
     long_range_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # variable_damage: damage changes per range band (see *_range_damage above).
-    # cluster: fires as a cluster (LRM/SRM etc.) resolved on the cluster table.
     variable_damage: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    cluster: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Per-range-band to-hit modifiers. NULL means no bonus/penalty at that band.
     # e.g. variable pulse lasers: -3 short, -2 medium, -1 long.
@@ -47,8 +45,14 @@ class Weapon(Base):
     num_shots: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cluster_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    @property
+    def cluster(self) -> bool:
+        """A weapon fires as a cluster (LRM/SRM etc.) when its cluster damage is set."""
+        return self.cluster_damage is not None
+
     def __repr__(self) -> str:
         return f"<Weapon(name='{self.name}', damage={self.damage}, heat={self.heat})>"
+    
 
 
 class MechWeapon(Base):
@@ -64,3 +68,6 @@ class MechWeapon(Base):
     # Use string references ("Mech") to prevent circular imports!
     mech: Mapped["Mech"] = relationship(back_populates="weapon_links")
     weapon: Mapped["Weapon"] = relationship()
+
+
+
