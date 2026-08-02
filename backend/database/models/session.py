@@ -1,8 +1,10 @@
 from typing import List, TYPE_CHECKING
 
 import sqlalchemy as sa
+from sqlalchemy import DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.models.base import Base
+from datetime import datetime, timezone
 
 # Imported only for type-checking to avoid a runtime circular import loop.
 if TYPE_CHECKING:
@@ -16,6 +18,7 @@ class Session(Base):
     name: Mapped[str] = mapped_column(sa.String(100), nullable=False)  # e.g., "The Battle for Tukayyid"
     status: Mapped[str] = mapped_column(sa.String(20), default="active")  # active (lobby), in_progress, completed
     current_turn: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)  # 0 = not started
+    created_on: Mapped[DateTime] = mapped_column(sa.DateTime, nullable=False, default=datetime.now(timezone.utc))
 
     # Relationship to get all mechs in this specific game session
     mechs: Mapped[List["SessionMech"]] = relationship(

@@ -922,6 +922,15 @@ function Sessions({ sessions, mechs, reload }) {
                   {s.mechs.length} mech(s)
                   {s.status === 'in_progress' && ` · Turn ${s.current_turn}`}
                 </div>
+                <div className="text-xs text-gray-600 mt-0.5">
+                  {new Date(s.created_on).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </div>
               </div>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-amber-400">
                 {s.status}

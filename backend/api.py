@@ -191,6 +191,7 @@ def create_session(payload: CreateSessionRequest):
                 "name": new_session.name,
                 "status": new_session.status,
                 "current_turn": new_session.current_turn,
+                "created_on": new_session.created_on,
             }
 
 
@@ -380,7 +381,7 @@ def get_all_sessions():
                 selectinload(Session.mechs).selectinload(SessionMech.weapon_states),
                 selectinload(Session.events),
             )
-            .order_by(Session.id)
+            .order_by(Session.status.desc())
         )
         sessions = session.execute(stmt).scalars().all()
 
@@ -415,6 +416,7 @@ def get_all_sessions():
                 "name": s.name,
                 "status": s.status,
                 "current_turn": s.current_turn,
+                "created_on": s.created_on,
                 "mechs": units,
                 "events": [{
                     "id": e.id,

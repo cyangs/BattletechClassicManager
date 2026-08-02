@@ -54,6 +54,7 @@ def roll_2d6() -> int:
 
 
 def roll_1d6() -> int:
+    """ The 1d6 roller."""
     return random.randint(1, 6)
 
 
