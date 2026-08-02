@@ -1505,7 +1505,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       </div>
 
       {/* Far right: damage totalled by target hit location */}
-      <div className="w-72 border-l border-gray-800 pl-4 flex flex-col items-end">
+      <div className="w-56 border-l border-gray-800 pl-4 flex flex-col items-end">
         {result ? (
           <DamageByLocation result={result} />
         ) : (
