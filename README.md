@@ -51,6 +51,10 @@ docker run --name local-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=
 
 ### Backend - 
 
+TODO: I need to put this up or container this. What a fucking nightmare. 
+
+use `pyenv` to install `python3.14` then do the below. 
+
 Create virtual environment
 
 `python3 -m venv .venv`
@@ -58,6 +62,8 @@ Create virtual environment
 `source .venv/bin/activate`
 
 May need to pip install <something>
+`ModuleNotFoundError: No module named 'fastapi'`
+`ModuleNotFoundError: No module named 'uvicorn'`
 
 `python3 -m pip install -r requirements.txt`
 
