@@ -51,6 +51,10 @@ docker run --name local-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=
 
 ### Backend - 
 
+Create virtual environment
+
+`python3 -m venv .venv`
+
 `source .venv/bin/activate`
 
 May need to pip install <something>
