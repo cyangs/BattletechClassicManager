@@ -41,6 +41,12 @@ Run `alembic upgrade head` to apply it.
 docker run --name local-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=mysecretpassword -p 5432:5432 -d postgres
 ```
 
+Persist -
+
+```
+docker run --name local-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=mysecretpassword -v local pgdata:/var/lib/postgresql/data -p 5432:5432 -d postgres
+```
+
 ## Running - 
 
 ### Backend - 
