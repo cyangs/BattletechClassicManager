@@ -72,4 +72,6 @@ May need to pip install <something>
 
 ### Frontend - 
 
+`npm install`
+
 `npm run dev`
