@@ -1496,7 +1496,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
 
       {/* Right: fire results */}
       {/* Arbitrarily Defined column width here since this is an important data column */}
-      <div className="w-[575px] shrink-0 border-l border-gray-800 pl-4">
+      <div className="w-96 shrink-0 border-l border-gray-800 pl-4">
         {result ? (
           <FireResults result={result} />
         ) : (
