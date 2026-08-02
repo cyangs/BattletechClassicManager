@@ -65,6 +65,16 @@ May need to pip install <something>
 `python3 api.py
 `
 
+After this starts running - 
+```INFO:     Started server process [16634]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+```
+You need to run the migrations.
+
+Then restart and it should start working.
+
 ### Frontend - 
 
 `npm install`
