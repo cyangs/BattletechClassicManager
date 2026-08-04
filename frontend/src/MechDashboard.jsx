@@ -111,7 +111,6 @@ function TeamBadge({ team }) {
 function Sessions({ sessions, mechs, reload }) {
   const [selectedId, setSelectedId] = useState(sessions[0]?.id ?? null);
   const [newName, setNewName] = useState('');
-  const [enemyForces, setEnemyForces] = useState([]); // staged enemy chassis (mech ids)
   const [mechToAdd, setMechToAdd] = useState('');
   const [addTeam, setAddTeam] = useState('player');
   const [pilotName, setPilotName] = useState('');
@@ -126,12 +125,11 @@ function Sessions({ sessions, mechs, reload }) {
     fetch(`${API}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim(), enemy_mech_ids: enemyForces }),
+      body: JSON.stringify({ name: newName.trim() }),
     })
       .then((r) => r.json())
       .then((created) => {
         setNewName('');
-        setEnemyForces([]);
         reload().then(() => setSelectedId(created.id));
       })
       .catch((err) => alert('Error creating session: ' + err));
@@ -166,6 +164,17 @@ function Sessions({ sessions, mechs, reload }) {
         reload();
       })
       .catch((err) => alert('Error adding mech: ' + err));
+  };
+
+  const addEnemy = (mechId) => {
+    if (!mechId || !selected) return;
+    fetch(`${API}/api/sessions/${selected.id}/mechs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mech_ids: [parseInt(mechId, 10)], team: 'enemy' }),
+    })
+      .then(() => reload())
+      .catch((err) => alert('Error adding enemy: ' + err));
   };
 
   const removeUnit = (unitId) => {
@@ -210,47 +219,6 @@ function Sessions({ sessions, mechs, reload }) {
               onChange={(e) => setNewName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:outline-none focus:border-amber-500"
             />
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
-                Enemy Forces
-              </label>
-              <select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) setEnemyForces([...enemyForces, parseInt(e.target.value, 10)]);
-                }}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-red-500"
-              >
-                <option value="">+ Add enemy chassis…</option>
-                {mechs.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.tonnage}t)
-                  </option>
-                ))}
-              </select>
-            </div>
-            {enemyForces.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {enemyForces.map((id, i) => {
-                  const m = mechs.find((x) => x.id === id);
-                  return (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-red-950/60 border border-red-900 text-red-300"
-                    >
-                      {m ? m.name : `#${id}`}
-                      <button
-                        type="button"
-                        onClick={() => setEnemyForces(enemyForces.filter((_, j) => j !== i))}
-                        className="text-red-400 hover:text-red-200 leading-none"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
             <button
               type="submit"
               disabled={!newName.trim()}
@@ -259,6 +227,30 @@ function Sessions({ sessions, mechs, reload }) {
               + Create Session
             </button>
           </form>
+
+          {/* Add enemy chassis to the currently selected session. */}
+          <div className="mt-3">
+            <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
+              Add Enemy Forces to Current Session
+            </label>
+            <select
+              value=""
+              disabled={!selected || completed}
+              onChange={(e) => {
+                if (e.target.value) addEnemy(e.target.value);
+              }}
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {selected ? '+ Add enemy chassis…' : 'Select a session first…'}
+              </option>
+              {mechs.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.tonnage}t)
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
