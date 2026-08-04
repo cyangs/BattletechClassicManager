@@ -1,14 +1,26 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, TypedDict
 
+from sqlalchemy import String, Integer, Boolean, JSON, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, Boolean
 from sqlalchemy.sql.schema import ForeignKey
 
-from database.models.base import Base
+from .ammo_type import AmmoType
+from .base import Base
+from .enums import TechBaseEnum
+from .weapon_attachment import WeaponAttachment
 
 # This prevents Python from actually importing Mech at runtime, breaking the loop
 if TYPE_CHECKING:
     from mech import Mech
+
+
+# Shape of the Weapon.modifications JSON blob (defined before Weapon so the
+# column annotation below can resolve it).
+class WeaponModifications(TypedDict, total=False):
+    system_type: str
+    attachments: List[str]
+    ammo_capabilities: List[str]
+
 
 class Weapon(Base):
     """Maps directly to the weapons_master database table."""
@@ -44,6 +56,25 @@ class Weapon(Base):
     # e.g. LRM 10 -> num_shots=10, cluster_damage=5; SRM 6 -> num_shots=6, cluster_damage=2.
     num_shots: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cluster_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    tech_base: Mapped[Optional[TechBaseEnum]] = mapped_column(
+        Enum(TechBaseEnum, name="techBaseEnum"),
+        nullable=True
+    )
+
+    modifications: Mapped[Optional[WeaponModifications]] = mapped_column(
+        JSON,
+        nullable=True,
+        default=lambda: {"system_type": "Standard", "attachments": [], "ammo_capabilities": []}
+    )
+
+    attachments: Mapped[list["WeaponAttachment"]] = relationship(
+        secondary="weapon_attachment_link"
+    )
+    compatible_ammo: Mapped[list["AmmoType"]] = relationship(
+        secondary="weapon_ammo_link"
+    )
+
 
     @property
     def cluster(self) -> bool:

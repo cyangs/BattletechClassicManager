@@ -3,12 +3,12 @@ from typing import List, TYPE_CHECKING
 import sqlalchemy as sa
 from sqlalchemy import DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from database.models.base import Base
 from datetime import datetime, timezone
+from .base import Base
 
 # Imported only for type-checking to avoid a runtime circular import loop.
 if TYPE_CHECKING:
-    from database.models.mech import Mech
+    from .mech import Mech
 
 class Session(Base):
     """Tracks active game rooms."""

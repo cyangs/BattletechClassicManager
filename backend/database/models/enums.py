@@ -20,3 +20,7 @@ class TechBaseEnum(Enum):
 
         # Return None if no match is found (Python will then raise a ValueError)
         return None
+
+class AttachmentType(Enum):
+    MECH = "mech"
+    WEAPON = "weapon"

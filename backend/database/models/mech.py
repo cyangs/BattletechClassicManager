@@ -3,8 +3,8 @@ from sqlalchemy import String, Integer
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database.models.base import Base
-from database.models.enums import TechBaseEnum
+from .base import Base
+from .enums import TechBaseEnum
 
 # Put the import here. Python ignores this at runtime, completely breaking the loop.
 if TYPE_CHECKING:

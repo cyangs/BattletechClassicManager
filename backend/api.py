@@ -9,6 +9,8 @@ from config import SessionLocal
 #  To this absolute package layout path:
 from database.models.mech import Mech
 from database.models.weapon import MechWeapon, Weapon
+from database.models.weapon_attachment import WeaponAttachment
+from database.models.ammo_type import AmmoType
 from database.models.enums import TechBaseEnum
 import sqlalchemy as sa
 
@@ -95,6 +97,23 @@ class AddWeaponLinkRequest(BaseModel):
 class WeaponStateRequest(BaseModel):
     weapon_key: str = Field(..., min_length=1, max_length=50)  # "<link_id>#<index>"
     disabled: bool
+
+
+class AttachmentSaveRequest(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=50)          # primary key, e.g. "ARTEMISIV"
+    display_name: str = Field(..., min_length=1, max_length=100)
+    to_hit_modifier: Optional[int] = None
+    tonnage: Optional[float] = None
+    description: Optional[str] = None
+
+
+class AmmoSaveRequest(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=50)          # primary key, e.g. "INFERNO"
+    display_name: str = Field(..., min_length=1, max_length=100)
+    damage: Optional[int] = None
+    heat: Optional[int] = None
+    special_effect: Optional[str] = Field(None, max_length=50)
+    description: Optional[str] = None
 
 
 @app.post("/api/mechs/save")
@@ -525,6 +544,82 @@ def get_all_weapons():
             "num_shots": w.num_shots,
             "cluster_damage": w.cluster_damage,
         } for w in weapons]
+
+
+# ---------------------------------------------------------------------------
+# Weapon attachments (Artemis IV, etc.) — keyed by their string SKU.
+# ---------------------------------------------------------------------------
+@app.get("/api/weapon-attachments")
+def get_all_attachments():
+    """Returns the full weapon_attachments catalog."""
+    with SessionLocal() as session:
+        rows = session.execute(
+            select(WeaponAttachment).order_by(WeaponAttachment.display_name)
+        ).scalars().all()
+        return [{
+            "sku": a.sku,
+            "display_name": a.display_name,
+            "to_hit_modifier": a.to_hit_modifier,
+            "tonnage": a.tonnage,
+            "description": a.description,
+        } for a in rows]
+
+
+@app.post("/api/weapon-attachments/save")
+def save_or_update_attachment(payload: AttachmentSaveRequest):
+    """Create or update an attachment (upsert on its SKU)."""
+    with SessionLocal() as session:
+        with session.begin():
+            attachment = session.get(WeaponAttachment, payload.sku)
+            action = "updated" if attachment else "created"
+            if not attachment:
+                attachment = WeaponAttachment(sku=payload.sku)
+                session.add(attachment)
+
+            attachment.display_name = payload.display_name
+            attachment.to_hit_modifier = payload.to_hit_modifier
+            attachment.tonnage = payload.tonnage
+            attachment.description = payload.description
+            return {"status": "success", "action": action, "sku": payload.sku}
+
+
+# ---------------------------------------------------------------------------
+# Ammo types (Inferno, etc.) — keyed by their string SKU.
+# ---------------------------------------------------------------------------
+@app.get("/api/ammo-types")
+def get_all_ammo_types():
+    """Returns the full ammo_types catalog."""
+    with SessionLocal() as session:
+        rows = session.execute(
+            select(AmmoType).order_by(AmmoType.display_name)
+        ).scalars().all()
+        return [{
+            "sku": a.sku,
+            "display_name": a.display_name,
+            "damage": a.damage,
+            "heat": a.heat,
+            "special_effect": a.special_effect,
+            "description": a.description,
+        } for a in rows]
+
+
+@app.post("/api/ammo-types/save")
+def save_or_update_ammo_type(payload: AmmoSaveRequest):
+    """Create or update an ammo type (upsert on its SKU)."""
+    with SessionLocal() as session:
+        with session.begin():
+            ammo = session.get(AmmoType, payload.sku)
+            action = "updated" if ammo else "created"
+            if not ammo:
+                ammo = AmmoType(sku=payload.sku)
+                session.add(ammo)
+
+            ammo.display_name = payload.display_name
+            ammo.damage = payload.damage
+            ammo.heat = payload.heat
+            ammo.special_effect = payload.special_effect
+            ammo.description = payload.description
+            return {"status": "success", "action": action, "sku": payload.sku}
 
 
 @app.get("/api/mechs")
