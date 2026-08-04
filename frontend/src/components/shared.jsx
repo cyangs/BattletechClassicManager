@@ -25,3 +25,19 @@ export function AmmoBadge({ use }) {
     </span>
   );
 }
+
+export function TechBaseBadge({ techBase }) {
+  const isClan = techBase === 'CLAN';
+
+  return (
+    <span
+      className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+        isClan
+          ? 'bg-sky-950/60 text-sky-400 border border-sky-900'
+          : 'bg-gray-800/60 text-gray-300 border border-gray-700'
+      }`}
+    >
+      {isClan ? 'Clan' : 'IS'}
+    </span>
+  );
+}

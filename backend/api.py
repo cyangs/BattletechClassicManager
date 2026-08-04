@@ -103,6 +103,7 @@ class AttachmentSaveRequest(BaseModel):
     sku: str = Field(..., min_length=1, max_length=50)          # primary key, e.g. "ARTEMISIV"
     display_name: str = Field(..., min_length=1, max_length=100)
     to_hit_modifier: Optional[int] = None
+    cluster_modifier: Optional[int] = None
     tonnage: Optional[float] = None
     description: Optional[str] = None
 
@@ -529,6 +530,7 @@ def get_all_weapons():
         weapons = session.execute(select(Weapon).order_by(Weapon.name)).scalars().all()
         return [{
             "id": w.id,
+            "tech_base": w.tech_base,
             "name": w.name,
             "full_name": w.full_name,
             "use_ammo": w.use_ammo,
@@ -560,6 +562,7 @@ def get_all_attachments():
             "sku": a.sku,
             "display_name": a.display_name,
             "to_hit_modifier": a.to_hit_modifier,
+            "cluster_modifier": a.cluster_modifier,
             "tonnage": a.tonnage,
             "description": a.description,
         } for a in rows]
@@ -578,6 +581,7 @@ def save_or_update_attachment(payload: AttachmentSaveRequest):
 
             attachment.display_name = payload.display_name
             attachment.to_hit_modifier = payload.to_hit_modifier
+            attachment.cluster_modifier = payload.cluster_modifier
             attachment.tonnage = payload.tonnage
             attachment.description = payload.description
             return {"status": "success", "action": action, "sku": payload.sku}

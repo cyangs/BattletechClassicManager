@@ -2,9 +2,9 @@ from enum import Enum
 
 # 1. Define your Enum choices
 class TechBaseEnum(Enum):
-    CLAN = "clan"
-    IS = "is"
-    MIXED = "mixed"
+    CLAN = "CLAN"
+    IS = "IS"
+    MIXED = "MIXED"
 
     @classmethod
     def _missing_(cls, value):

@@ -23,7 +23,7 @@ enum_name = "techBaseEnum"
 def upgrade() -> None:
     # 1. Create the ENUM type in the database first
     sa_enum = sa.Enum(
-        "INNER_SPHERE", "CLAN", "MIXED",
+        "IS", "CLAN", "MIXED",
         name=enum_name
     )
     sa_enum.create(op.get_bind(), checkfirst=True)

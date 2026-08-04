@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { API } from '../api';
-import { AmmoBadge, LabeledInput } from './shared';
+import {AmmoBadge, LabeledInput, TechBaseBadge} from './shared';
 
 // Format a to-hit modifier for display: "+2", "-3", 0, or "—" when unset.
 function fmtMod(v) {
@@ -103,6 +103,7 @@ function WeaponsCatalog({ weapons, reload }) {
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
             <tr>
+              <th className="px-6 py-3">Tech Base</th>
               <th className="px-6 py-3">Weapon System</th>
               <th className="px-4 py-3">Damage</th>
               <th className="px-4 py-3">Heat</th>
@@ -116,6 +117,9 @@ function WeaponsCatalog({ weapons, reload }) {
           <tbody className="divide-y divide-gray-800 text-gray-300">
             {filtered.map((w) => (
               <tr key={w.id} className="hover:bg-gray-900/20">
+                <td className="px-4 py-4">
+                  <TechBaseBadge techBase={w.tech_base} />
+                </td>
                 <td className="px-6 py-4 text-white font-medium">{w.full_name || w.name}</td>
                 <td className="px-4 py-4 font-bold text-amber-500">{w.damage}</td>
                 <td className="px-4 py-4 text-red-400">{w.heat}</td>
@@ -337,6 +341,7 @@ function AttachmentsCatalog({ attachments, reload }) {
               <th className="px-6 py-3">Attachment</th>
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">To-Hit Mod</th>
+              <th className="px-4 py-3">Cluster Mod</th>
               <th className="px-4 py-3">Tonnage</th>
               <th className="px-4 py-3">Description</th>
               <th className="px-4 py-3"></th>
@@ -348,6 +353,7 @@ function AttachmentsCatalog({ attachments, reload }) {
                 <td className="px-6 py-4 text-white font-medium">{a.display_name}</td>
                 <td className="px-4 py-4 font-mono text-xs text-gray-400">{a.sku}</td>
                 <td className="px-4 py-4 font-mono text-amber-400">{fmtMod(a.to_hit_modifier)}</td>
+                <td className="px-4 py-4 font-mono text-amber-400">{fmtMod(a.cluster_modifier)}</td>
                 <td className="px-4 py-4 font-mono text-xs text-gray-400">{a.tonnage ?? '—'}</td>
                 <td className="px-4 py-4 text-xs text-gray-400 max-w-md truncate">
                   {a.description || '—'}
@@ -397,6 +403,7 @@ function AttachmentEditor({ attachment, onClose, onSaved }) {
       sku: fd.get('sku'),
       display_name: fd.get('display_name'),
       to_hit_modifier: num(fd.get('to_hit_modifier')),
+      cluster_modifier: num(fd.get('cluster_modifier')),
       tonnage: flt(fd.get('tonnage')),
       description: fd.get('description') || null,
     };
@@ -448,6 +455,7 @@ function AttachmentEditor({ attachment, onClose, onSaved }) {
           />
           <div className="grid grid-cols-2 gap-4">
             <LabeledInput name="to_hit_modifier" label="To-Hit Modifier" type="number" defaultValue={attachment?.to_hit_modifier ?? ''} />
+            <LabeledInput name="cluster_modifier" label="Cluster Modifier" type="number" defaultValue={attachment?.cluster_modifier ?? ''} />
             <LabeledInput name="tonnage" label="Tonnage" type="number" step="0.5" min="0" defaultValue={attachment?.tonnage ?? ''} />
           </div>
           <div>
