@@ -36,6 +36,7 @@ def artemis_iv(session) -> WeaponAttachment:
         display_name="Artemis IV FCS",
         to_hit_modifier=-1,
         tonnage=1.0,
+        attachment_type="WEAPON",
         description="Improves missile accuracy.",
     )
     session.add(attachment)
@@ -50,6 +51,7 @@ def targeting_computer(session) -> WeaponAttachment:
         display_name="Targeting Computer",
         to_hit_modifier=None,
         tonnage=3.0,
+        attachment_type="MECH",
         description="Improves direct-fire weapon accuracy.",
     )
     session.add(attachment)
@@ -118,6 +120,7 @@ class TestWeaponAttachment:
         duplicate = WeaponAttachment(
             sku="ARTEMISIV",
             display_name="Duplicate Artemis IV",
+            attachment_type="WEAPON",
         )
         session.add(duplicate)
         with pytest.raises(IntegrityError):
@@ -125,7 +128,7 @@ class TestWeaponAttachment:
         session.rollback()
 
     def test_optional_fields_can_be_null(self, session):
-        attachment = WeaponAttachment(sku="TAG", display_name="TAG")
+        attachment = WeaponAttachment(sku="TAG", attachment_type="WEAPON", display_name="TAG")
         session.add(attachment)
         session.commit()
 
