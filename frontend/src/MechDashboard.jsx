@@ -105,21 +105,31 @@ function TeamBadge({ team }) {
   );
 }
 
-// Little badges for the chassis-level attachments fitted onto a mech.
-function AttachmentBadges({ attachments }) {
+// Little badges for the chassis-level attachments fitted onto a mech. Click a
+// badge to toggle its destroyed state (combat damage) for the session.
+function AttachmentBadges({ attachments, onToggle }) {
   const list = attachments ?? [];
   if (list.length === 0) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">
-      {list.map((a) => (
-        <span
-          key={a.sku}
-          title={a.display_name}
-          className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-amber-950/50 text-amber-400 border border-amber-900"
-        >
-          {a.display_name}
-        </span>
-      ))}
+      {list.map((a) => {
+        const destroyed = a.destroyed;
+        return (
+          <button
+            key={a.id ?? a.sku}
+            type="button"
+            onClick={onToggle ? () => onToggle(a) : undefined}
+            title={destroyed ? `${a.display_name} — destroyed (click to repair)` : `${a.display_name} (click to mark destroyed)`}
+            className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+              destroyed
+                ? 'bg-red-950/60 text-red-400 border-red-800 line-through'
+                : 'bg-amber-950/50 text-amber-400 border-amber-900 hover:border-amber-600'
+            }`}
+          >
+            {a.display_name}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -553,21 +563,20 @@ function Sessions({ sessions, mechs, reload }) {
 
 // One combat row per deployed mech: weapon selection + fire + results.
 function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null, reload }) {
-  const links = mech?.weapon_links ?? [];
-  // Expand each mounted link into one row per weapon instance (a link mounted
-  // in count N becomes N individually-selectable rows), so the player fires
-  // each weapon separately rather than the whole group at once.
-  const instances = links.flatMap((link) =>
-    Array.from({ length: Math.max(1, link.count) }, (_, i) => ({
-      key: `${link.id}#${i}`,
-      linkId: link.id,
-      name: link.weapon?.full_name || link.weapon?.name,
-      location: link.location,
-      heat: link.heat,
-    })),
-  );
-  // Weapon instances disabled for the session (carried forward across turns).
-  const disabledWeapons = new Set(unit.disabled_weapons ?? []);
+  // The unit owns a session-private copy of its loadout (snapshotted when it
+  // was deployed). Each weapon row is one fireable instance and carries its own
+  // destroyed (knocked out) flag, so damage is tracked per session without ever
+  // touching the master chassis.
+  const weaponRows = unit.weapons ?? [];
+  const instances = weaponRows.map((w) => ({
+    key: w.id,
+    id: w.id,
+    name: w.full_name || w.name,
+    location: w.location,
+    heat: w.heat,
+    destroyed: w.destroyed,
+  }));
+  const attachments = unit.attachments ?? [];
   // A logged fire this turn means this unit has already fired (Fire is spent
   // until the turn advances or the fire is undone).
   const firedThisTurn = !!unit.fired_this_turn;
@@ -595,10 +604,10 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
   const target = enemies.find((e) => String(e.id) === String(targetUnitId)) ?? null;
   const needsTarget = enemies.length > 0;
 
-  // Every weapon instance the unit can still fire this turn (disabled ones excluded).
-  const fireableInstances = instances.filter((inst) => !disabledWeapons.has(inst.key));
+  // Every weapon instance the unit can still fire this turn (destroyed ones excluded).
+  const fireableInstances = instances.filter((inst) => !inst.destroyed);
 
-  // Resolve a fire for the given weapon link ids (one entry per shot).
+  // Resolve a fire for the given session weapon ids (one entry per shot).
   const doFire = (weaponLinkIds) => {
     if (weaponLinkIds.length === 0) return;
     setFiring(true);
@@ -634,13 +643,13 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
     doFire(
       fireableInstances
         .filter((inst) => selected.has(inst.key))
-        .map((inst) => inst.linkId),
+        .map((inst) => inst.id),
     );
 
   // Alpha strike: select and fire every enabled weapon at once.
   const alphaStrike = () => {
     setSelected(new Set(fireableInstances.map((inst) => inst.key)));
-    doFire(fireableInstances.map((inst) => inst.linkId));
+    doFire(fireableInstances.map((inst) => inst.id));
   };
 
   // Undo this turn's fire: drop the logged event so the unit can fire again.
@@ -656,28 +665,50 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       .catch((err) => alert('Error undoing fire: ' + err.message));
   };
 
-  // Toggle a weapon instance's disabled state; persists for the whole session.
-  const toggleDisabled = (weaponKey) => {
-    const nextDisabled = !disabledWeapons.has(weaponKey);
-    if (nextDisabled) {
-      // Can't keep a disabled weapon selected for firing.
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(weaponKey);
-        return next;
-      });
-    }
-    fetch(`${API}/api/sessions/${sessionId}/mechs/${unit.id}/weapon-state`, {
+  // Drop a weapon instance from the current fire selection (used when it can no
+  // longer fire — e.g. it was just destroyed).
+  const deselect = (weaponId) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(weaponId);
+      return next;
+    });
+
+  // Post a boolean state change (destroyed) for one weapon instance.
+  const postWeaponFlag = (path, body) =>
+    fetch(`${API}/api/sessions/${sessionId}/mechs/${unit.id}/${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weapon_key: weaponKey, disabled: nextDisabled }),
+      body: JSON.stringify(body),
     })
       .then(async (res) => {
         if (!res.ok) throw new Error('Update failed');
         reload?.();
       })
       .catch((err) => alert('Error updating weapon: ' + err.message));
+
+  // Toggle a weapon instance's destroyed state (combat damage).
+  const toggleDestroyed = (inst) => {
+    const nextDestroyed = !inst.destroyed;
+    if (nextDestroyed) deselect(inst.id); // a destroyed weapon can't fire
+    postWeaponFlag('weapon-destroyed', { session_weapon_id: inst.id, destroyed: nextDestroyed });
   };
+
+  // Toggle an attachment's destroyed state (combat damage).
+  const toggleAttachmentDestroyed = (attachment) =>
+    fetch(`${API}/api/sessions/${sessionId}/mechs/${unit.id}/attachment-destroyed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_attachment_id: attachment.id,
+        destroyed: !attachment.destroyed,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Update failed');
+        reload?.();
+      })
+      .catch((err) => alert('Error updating attachment: ' + err.message));
 
   return (
     <div className="border border-gray-800 rounded-lg bg-gray-950 p-4 flex gap-4 w-full">
@@ -703,34 +734,44 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
         ) : (
           <div className="space-y-1.5">
             {instances.map((inst) => {
-              const isDisabled = disabledWeapons.has(inst.key);
+              const isDestroyed = inst.destroyed;
               return (
                 <div key={inst.key} className="flex items-center gap-2 py-1">
                   <label
                     className={`flex flex-1 min-w-0 items-center gap-2 text-sm ${
-                      isDisabled
+                      isDestroyed
                         ? 'text-gray-600 line-through cursor-not-allowed'
                         : 'text-gray-300 cursor-pointer'
                     }`}
                   >
                     <input
                       type="checkbox"
-                      checked={selected.has(inst.key) && !isDisabled}
+                      checked={selected.has(inst.key) && !isDestroyed}
                       onChange={() => toggle(inst.key)}
-                      disabled={isDisabled || firedThisTurn}
+                      disabled={isDestroyed || firedThisTurn}
                       className="w-4 h-4 accent-amber-600 disabled:opacity-40"
                     />
-                    <span className="text-sm truncate font-mono">{inst.name}</span>
+                    <span className={`text-sm truncate font-mono ${isDestroyed ? 'text-red-500/70' : ''}`}>
+                      {inst.name}
+                    </span>
                     <span className="text-xs text-gray-500 font-mono">· {inst.location}</span>
-                    <span className="text-xs text-gray-500 font-mono">· {inst.heat}</span>
+                    {inst.heat != null && (
+                      <span className="text-xs text-gray-500 font-mono">· {inst.heat}</span>
+                    )}
+                    {isDestroyed && (
+                      <span className="text-[10px] uppercase font-bold text-red-400 border border-red-800 rounded px-1 no-underline">
+                        Destroyed
+                      </span>
+                    )}
                   </label>
+                  {/* Destroy / repair (combat damage) */}
                   <button
                     type="button"
-                    onClick={() => toggleDisabled(inst.key)}
-                    title={isDisabled ? 'Re-enable weapon' : 'Disable weapon for the session'}
-                    className={`ml-auto shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs font-bold leading-none ${
-                      isDisabled
-                        ? 'bg-red-900/70 text-red-200 border border-red-700'
+                    onClick={() => toggleDestroyed(inst)}
+                    title={isDestroyed ? 'Repair weapon' : 'Mark weapon destroyed'}
+                    className={`shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs font-bold leading-none ${
+                      isDestroyed
+                        ? 'bg-red-800 text-red-100 border border-red-600'
                         : 'text-gray-500 hover:text-red-400 hover:bg-red-950/40'
                     }`}
                   >
@@ -760,7 +801,7 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
           </button>
         </div>
 
-      <AttachmentBadges attachments={mech?.attachments ?? unit.attachments} />
+      <AttachmentBadges attachments={attachments} onToggle={toggleAttachmentDestroyed} />
 
         {firedThisTurn && (
           <div className="mt-2">

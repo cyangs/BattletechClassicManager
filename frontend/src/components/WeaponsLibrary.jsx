@@ -343,8 +343,8 @@ function AttachmentsCatalog({ attachments, reload }) {
           <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
             <tr>
               <th className="px-4 py-3">Tech Base</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-6 py-3">Attachment</th>
-              <th className="px-6 py-3">Type</th>
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">To-Hit Mod</th>
               <th className="px-4 py-3">Cluster Mod</th>
@@ -359,10 +359,10 @@ function AttachmentsCatalog({ attachments, reload }) {
                 <td className="px-4 py-4 w-20">
                   <TechBaseBadge techBase={a.tech_base} />
                 </td>
-                <td className="px-6 py-4 text-white font-medium">{a.display_name}</td>
                 <td className="px-4 py-4 w-20">
                   <AttachmentTypeBadge attachment_type={a.attachment_type} />
                 </td>
+                <td className="px-6 py-4 text-white font-medium">{a.display_name}</td>
                 <td className="px-4 py-4 font-mono text-xs text-gray-400">{a.sku}</td>
                 <td className="px-4 py-4 font-mono text-amber-400">{fmtMod(a.to_hit_modifier)}</td>
                 <td className="px-4 py-4 font-mono text-amber-400">{fmtMod(a.cluster_modifier)}</td>

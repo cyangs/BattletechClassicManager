@@ -9,6 +9,8 @@ from .base import Base
 # Imported only for type-checking to avoid a runtime circular import loop.
 if TYPE_CHECKING:
     from .mech import Mech
+    from .weapon import Weapon
+    from .attachments import Attachments
 
 class Session(Base):
     """Tracks active game rooms."""
@@ -50,6 +52,15 @@ class SessionMech(Base):
     # Per-weapon disable flags for this unit, carried for the whole session.
     weapon_states: Mapped[List["SessionWeaponState"]] = relationship(
         back_populates="session_mech", cascade="all, delete-orphan"
+    )
+    # Session-owned copy of the mech's loadout, snapshotted when the unit is
+    # deployed. These are mutable per session (weapons/attachments can be marked
+    # destroyed) without ever touching the master chassis.
+    weapons: Mapped[List["SessionMechWeapon"]] = relationship(
+        back_populates="session_mech", cascade="all, delete-orphan", order_by="SessionMechWeapon.id"
+    )
+    attachments: Mapped[List["SessionMechAttachment"]] = relationship(
+        back_populates="session_mech", cascade="all, delete-orphan", order_by="SessionMechAttachment.id"
     )
 
 
@@ -99,3 +110,50 @@ class SessionWeaponState(Base):
     disabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
 
     session_mech: Mapped["SessionMech"] = relationship(back_populates="weapon_states")
+
+
+class SessionMechWeapon(Base):
+    """A single weapon instance owned by a unit inside one game session.
+
+    Snapshotted from the master mech's loadout when the unit is deployed: a
+    master mount of count N becomes N rows here, so each fireable instance is a
+    first-class row that can independently be disabled (player holds fire) or
+    destroyed (knocked out by combat damage).
+    """
+    __tablename__ = "session_mech_weapons"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    session_mech_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("session_mechs.id", ondelete="CASCADE"), nullable=False
+    )
+    # Points at the catalog weapon so stats (damage/heat/range) stay resolvable.
+    weapon_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("weapons_master.id", ondelete="RESTRICT"), nullable=False
+    )
+    location: Mapped[str] = mapped_column(sa.String(50), nullable=False)
+    disabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    destroyed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+
+    session_mech: Mapped["SessionMech"] = relationship(back_populates="weapons")
+    weapon: Mapped["Weapon"] = relationship()
+
+
+class SessionMechAttachment(Base):
+    """A chassis-level attachment owned by a unit inside one game session.
+
+    Snapshotted from the master mech's fitted attachments when the unit is
+    deployed; can be marked destroyed per session without touching the master.
+    """
+    __tablename__ = "session_mech_attachments"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    session_mech_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("session_mechs.id", ondelete="CASCADE"), nullable=False
+    )
+    attachment_sku: Mapped[str] = mapped_column(
+        sa.ForeignKey("attachments.sku", ondelete="RESTRICT"), nullable=False
+    )
+    destroyed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+
+    session_mech: Mapped["SessionMech"] = relationship(back_populates="attachments")
+    attachment: Mapped["Attachments"] = relationship()
