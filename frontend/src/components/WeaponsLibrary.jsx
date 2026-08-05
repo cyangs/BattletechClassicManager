@@ -44,7 +44,7 @@ export default function WeaponsLibrary({ weapons, reload }) {
       <div className="max-w-screen-2xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
           <h1 className="text-2xl font-bold text-amber-500 whitespace-nowrap">
-            Weapons Master Catalog
+            Weapons & Parts Master Catalog
           </h1>
           <nav className="flex gap-1">
             {CATALOG_TABS.map((t) => (
@@ -104,6 +104,7 @@ function WeaponsCatalog({ weapons, reload }) {
           <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
             <tr>
               <th className="px-6 py-3">Tech Base</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-6 py-3">Weapon System</th>
               <th className="px-4 py-3">Damage</th>
               <th className="px-4 py-3">Heat</th>
@@ -117,8 +118,11 @@ function WeaponsCatalog({ weapons, reload }) {
           <tbody className="divide-y divide-gray-800 text-gray-300">
             {filtered.map((w) => (
               <tr key={w.id} className="hover:bg-gray-900/20">
-                <td className="px-4 py-4">
+                <td className="px-4 py-4 w-20">
                   <TechBaseBadge techBase={w.tech_base} />
+                </td>
+                <td className="px-4 py-4 w-20">
+                  <WeaponTypeBadge weaponType={w.type} />
                 </td>
                 <td className="px-6 py-4 text-white font-medium">{w.full_name || w.name}</td>
                 <td className="px-4 py-4 font-bold text-amber-500">{w.damage}</td>
@@ -338,7 +342,9 @@ function AttachmentsCatalog({ attachments, reload }) {
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
             <tr>
+              <th className="px-4 py-3">Tech Base</th>
               <th className="px-6 py-3">Attachment</th>
+              <th className="px-6 py-3">Type</th>
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">To-Hit Mod</th>
               <th className="px-4 py-3">Cluster Mod</th>
@@ -350,7 +356,13 @@ function AttachmentsCatalog({ attachments, reload }) {
           <tbody className="divide-y divide-gray-800 text-gray-300">
             {filtered.map((a) => (
               <tr key={a.sku} className="hover:bg-gray-900/20">
+                <td className="px-4 py-4 w-20">
+                  <TechBaseBadge techBase={a.tech_base} />
+                </td>
                 <td className="px-6 py-4 text-white font-medium">{a.display_name}</td>
+                <td className="px-4 py-4 w-20">
+                  <AttachmentTypeBadge attachment_type={a.attachment_type} />
+                </td>
                 <td className="px-4 py-4 font-mono text-xs text-gray-400">{a.sku}</td>
                 <td className="px-4 py-4 font-mono text-amber-400">{fmtMod(a.to_hit_modifier)}</td>
                 <td className="px-4 py-4 font-mono text-amber-400">{fmtMod(a.cluster_modifier)}</td>
@@ -392,6 +404,46 @@ function AttachmentsCatalog({ attachments, reload }) {
     </>
   );
 }
+
+function AttachmentTypeBadge({ attachment_type }) {
+  const isWeaponAttachment = attachment_type === 'weapon';
+
+  return (
+    <span
+      className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+        isWeaponAttachment
+          ? 'bg-red-950/60 text-red-400 border border-red-900'
+          : 'bg-gray-800/60 text-gray-300 border border-gray-700'
+      }`}
+    >
+      {isWeaponAttachment ? 'Weapon' : 'Mech'}
+    </span>
+  );
+}
+
+function WeaponTypeBadge({ weaponType }) {
+  const weaponTypeBadgeMap = {
+    MISSILE:   { label: 'Missile',    classes: 'bg-red-950/60 text-red-400 border border-red-900' },
+    BALLISTIC: { label: 'Ballistic',  classes: 'bg-blue-950/60 text-blue-400 border border-blue-900' },
+    LASER:     { label: 'Laser',      classes: 'bg-amber-950/60 text-amber-400 border border-amber-900' },
+    PPC:       { label: 'PPC',        classes: 'bg-amber-950/60 text-amber-400 border border-amber-900' },
+    ARTY:      { label: 'Artillery',  classes: 'bg-amber-950/60 text-amber-400 border border-amber-900' },
+    OTHER:     { label: 'Other',      classes: 'bg-amber-950/60 text-amber-400 border border-amber-900' },
+  };
+
+  const key = (weaponType || '').toUpperCase();
+  const weaponTypeBadge = weaponTypeBadgeMap[key] || {
+    label: 'Unknown',
+    classes: 'bg-gray-800/60 text-gray-300 border border-gray-700'
+  };
+
+  return (
+    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${weaponTypeBadge.classes}`}>
+      {weaponTypeBadge.label}
+    </span>
+  );
+}
+
 
 function AttachmentEditor({ attachment, onClose, onSaved }) {
   const handleSubmit = (e) => {
@@ -457,6 +509,7 @@ function AttachmentEditor({ attachment, onClose, onSaved }) {
             <LabeledInput name="to_hit_modifier" label="To-Hit Modifier" type="number" defaultValue={attachment?.to_hit_modifier ?? ''} />
             <LabeledInput name="cluster_modifier" label="Cluster Modifier" type="number" defaultValue={attachment?.cluster_modifier ?? ''} />
             <LabeledInput name="tonnage" label="Tonnage" type="number" step="0.5" min="0" defaultValue={attachment?.tonnage ?? ''} />
+
           </div>
           <div>
             <label className="block text-xs uppercase text-gray-400 mb-1">Description</label>

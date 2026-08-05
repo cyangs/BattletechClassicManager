@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { API } from '../api';
 import { AmmoBadge, LabeledInput } from './shared';
@@ -85,7 +85,10 @@ export default function MechsLibrary({ mechs, weapons, reload }) {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
             <Section title="📊 Readout Overview">
               {selectedMech ? (
-                <MechOverview mech={selectedMech} />
+                <div className="space-y-4">
+                  <MechOverview mech={selectedMech} />
+                  <MechAttachments mech={selectedMech} reload={reload} />
+                </div>
               ) : (
                 <ColumnHint>Select a chassis to view its readout.</ColumnHint>
               )}
@@ -153,6 +156,96 @@ function Field({ label, value, accent, uppercase }) {
       <strong className={`${accent ? 'text-amber-400' : ''} ${uppercase ? 'uppercase' : ''}`}>
         {value}
       </strong>
+    </div>
+  );
+}
+
+// Chassis-level equipment (attachment_type "mech") pulled from the catalog and
+// made available to fit onto the selected mech. Fitted attachments persist via
+// the mech_attachment_link table; the mech's current set arrives on the mech
+// object as `mech.attachments`.
+function MechAttachments({ mech, reload }) {
+  const [catalog, setCatalog] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/api/weapon-attachments?attachment_type=mech`)
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || 'Failed to load attachments');
+        return body;
+      })
+      .then((rows) => {
+        if (!cancelled) setCatalog(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fittedSkus = new Set((mech.attachments ?? []).map((a) => a.sku));
+
+  const toggle = (sku) => {
+    const fitted = fittedSkus.has(sku);
+    const req = fitted
+      ? fetch(`${API}/api/mechs/${mech.id}/attachments/${sku}`, { method: 'DELETE' })
+      : fetch(`${API}/api/mechs/${mech.id}/attachments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku }),
+        });
+    req
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || 'Update failed');
+        reload();
+      })
+      .catch((err) => alert('Error updating attachment: ' + err.message));
+  };
+
+  return (
+    <div className="bg-gray-950 p-6 rounded-lg border border-gray-800 shadow-md">
+      <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-800 pb-2">
+        Chassis Equipment
+      </h3>
+
+      {error && <div className="text-sm text-red-400 mb-3">{error}</div>}
+
+      <div className="border border-gray-800 rounded-lg bg-gray-900 divide-y divide-gray-800">
+        {catalog.map((a) => {
+          const fitted = fittedSkus.has(a.sku);
+          return (
+            <div key={a.sku} className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-white text-sm font-medium truncate">{a.display_name}</div>
+                <div className="text-xs text-gray-400 font-mono mt-0.5">
+                  {a.tonnage != null ? `${a.tonnage}t` : '—'}
+                  {a.tech_base ? ` · ${a.tech_base}` : ''}
+                </div>
+              </div>
+              <button
+                onClick={() => toggle(a.sku)}
+                className={`text-xs px-3 py-1 rounded border shrink-0 ml-2 ${
+                  fitted
+                    ? 'bg-amber-950/40 border-amber-600 text-amber-400 hover:bg-amber-950/60'
+                    : 'bg-gray-900 border-gray-700 text-amber-500 hover:bg-gray-800'
+                }`}
+              >
+                {fitted ? '✓ Fitted' : '+ Add'}
+              </button>
+            </div>
+          );
+        })}
+        {catalog.length === 0 && !error && (
+          <div className="px-4 py-8 text-center text-gray-500 text-sm">
+            No mech attachments in the catalog.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

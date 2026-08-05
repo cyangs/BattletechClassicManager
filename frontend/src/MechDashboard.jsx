@@ -105,6 +105,25 @@ function TeamBadge({ team }) {
   );
 }
 
+// Little badges for the chassis-level attachments fitted onto a mech.
+function AttachmentBadges({ attachments }) {
+  const list = attachments ?? [];
+  if (list.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {list.map((a) => (
+        <span
+          key={a.sku}
+          title={a.display_name}
+          className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-amber-950/50 text-amber-400 border border-amber-900"
+        >
+          {a.display_name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // =====================================================================
 // TAB 3: SESSIONS — game rooms with deployed mech rosters
 // =====================================================================
@@ -740,6 +759,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
             ☢ Alpha Strike
           </button>
         </div>
+
+      <AttachmentBadges attachments={mech?.attachments ?? unit.attachments} />
 
         {firedThisTurn && (
           <div className="mt-2">

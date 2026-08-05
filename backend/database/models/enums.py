@@ -24,3 +24,12 @@ class TechBaseEnum(Enum):
 class AttachmentType(Enum):
     MECH = "mech"
     WEAPON = "weapon"
+
+
+class WeaponType(Enum):
+    MISSILE = "MISSILE"
+    BALLISTIC = "BALLISTIC"
+    LASER = "LASER"
+    PPC = "PPC"
+    ARTY = "ARTY"
+    OTHER = "OTHER"

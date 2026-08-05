@@ -6,8 +6,8 @@ from sqlalchemy.sql.schema import ForeignKey
 
 from .ammo_type import AmmoType
 from .base import Base
-from .enums import TechBaseEnum
-from .weapon_attachment import WeaponAttachment
+from .enums import TechBaseEnum, WeaponType
+from .attachments import Attachments
 
 # This prevents Python from actually importing Mech at runtime, breaking the loop
 if TYPE_CHECKING:
@@ -57,6 +57,11 @@ class Weapon(Base):
     num_shots: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cluster_damage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    type: Mapped[Optional[WeaponType]] = mapped_column(
+        Enum(WeaponType, name="weaponType"),
+        nullable=True
+    )
+
     tech_base: Mapped[Optional[TechBaseEnum]] = mapped_column(
         Enum(TechBaseEnum, name="techBaseEnum"),
         nullable=True
@@ -68,7 +73,7 @@ class Weapon(Base):
         default=lambda: {"system_type": "Standard", "attachments": [], "ammo_capabilities": []}
     )
 
-    attachments: Mapped[list["WeaponAttachment"]] = relationship(
+    attachments: Mapped[list["Attachments"]] = relationship(
         secondary="weapon_attachment_link"
     )
     compatible_ammo: Mapped[list["AmmoType"]] = relationship(

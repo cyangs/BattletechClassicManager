@@ -9,9 +9,9 @@ from config import SessionLocal
 #  To this absolute package layout path:
 from database.models.mech import Mech
 from database.models.weapon import MechWeapon, Weapon
-from database.models.weapon_attachment import WeaponAttachment
+from database.models.attachments import Attachments
 from database.models.ammo_type import AmmoType
-from database.models.enums import TechBaseEnum
+from database.models.enums import TechBaseEnum, AttachmentType
 import sqlalchemy as sa
 
 from database.models.session import SessionMech, Session, SessionEvent, SessionWeaponState
@@ -92,6 +92,10 @@ class AddWeaponLinkRequest(BaseModel):
     weapon_id: int
     count: int = Field(1, ge=1)
     location: str = Field(..., min_length=1, max_length=50)
+
+
+class AddMechAttachmentRequest(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=50)  # attachments.sku to fit
 
 
 class WeaponStateRequest(BaseModel):
@@ -190,6 +194,50 @@ def remove_weapon_from_mech(mech_id: int, link_id: int):
                 raise HTTPException(status_code=404, detail="Weapon hardpoint not found on this mech")
             session.delete(link)
             return {"status": "removed", "link_id": link_id}
+
+
+@app.post("/api/mechs/{mech_id}/attachments")
+def add_attachment_to_mech(mech_id: int, payload: AddMechAttachmentRequest):
+    """Fits a chassis-level attachment (attachment_type "mech") onto a mech."""
+    with SessionLocal() as session:
+        with session.begin():
+            mech = session.execute(
+                select(Mech)
+                .options(selectinload(Mech.attachments))
+                .where(Mech.id == mech_id)
+            ).scalar_one_or_none()
+            if not mech:
+                raise HTTPException(status_code=404, detail="Target BattleMech row not found")
+
+            attachment = session.get(Attachments, payload.sku)
+            if not attachment:
+                raise HTTPException(status_code=404, detail="Attachment not found in catalog")
+            if attachment.attachment_type != AttachmentType.MECH:
+                raise HTTPException(status_code=400,
+                                    detail="Only 'mech' attachments can be fitted to a chassis")
+
+            if attachment not in mech.attachments:
+                mech.attachments.append(attachment)
+            return {"status": "success", "mech_id": mech_id, "sku": payload.sku}
+
+
+@app.delete("/api/mechs/{mech_id}/attachments/{sku}")
+def remove_attachment_from_mech(mech_id: int, sku: str):
+    with SessionLocal() as session:
+        with session.begin():
+            mech = session.execute(
+                select(Mech)
+                .options(selectinload(Mech.attachments))
+                .where(Mech.id == mech_id)
+            ).scalar_one_or_none()
+            if not mech:
+                raise HTTPException(status_code=404, detail="Target BattleMech row not found")
+
+            attachment = next((a for a in mech.attachments if a.sku == sku), None)
+            if not attachment:
+                raise HTTPException(status_code=404, detail="Attachment not fitted to this mech")
+            mech.attachments.remove(attachment)
+            return {"status": "removed", "mech_id": mech_id, "sku": sku}
 
 
 @app.post("/api/sessions")
@@ -545,6 +593,7 @@ def get_all_weapons():
             "long_range_modifier": w.long_range_modifier,
             "num_shots": w.num_shots,
             "cluster_damage": w.cluster_damage,
+            "type": w.type
         } for w in weapons]
 
 
@@ -552,18 +601,29 @@ def get_all_weapons():
 # Weapon attachments (Artemis IV, etc.) — keyed by their string SKU.
 # ---------------------------------------------------------------------------
 @app.get("/api/weapon-attachments")
-def get_all_attachments():
-    """Returns the full weapon_attachments catalog."""
+def get_all_attachments(attachment_type: Optional[str] = None):
+    """Returns the weapon_attachments catalog, optionally filtered by
+    attachment_type (e.g. "mech" or "weapon")."""
     with SessionLocal() as session:
-        rows = session.execute(
-            select(WeaponAttachment).order_by(WeaponAttachment.display_name)
-        ).scalars().all()
+        stmt = select(Attachments).order_by(Attachments.display_name)
+        if attachment_type is not None:
+            try:
+                type_enum = AttachmentType(attachment_type)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid attachment_type. Use 'mech' or 'weapon'.",
+                )
+            stmt = stmt.where(Attachments.attachment_type == type_enum)
+        rows = session.execute(stmt).scalars().all()
         return [{
             "sku": a.sku,
             "display_name": a.display_name,
             "to_hit_modifier": a.to_hit_modifier,
             "cluster_modifier": a.cluster_modifier,
             "tonnage": a.tonnage,
+            "tech_base": a.tech_base,
+            "attachment_type": a.attachment_type.value if a.attachment_type else None,
             "description": a.description,
         } for a in rows]
 
@@ -573,10 +633,10 @@ def save_or_update_attachment(payload: AttachmentSaveRequest):
     """Create or update an attachment (upsert on its SKU)."""
     with SessionLocal() as session:
         with session.begin():
-            attachment = session.get(WeaponAttachment, payload.sku)
+            attachment = session.get(Attachments, payload.sku)
             action = "updated" if attachment else "created"
             if not attachment:
-                attachment = WeaponAttachment(sku=payload.sku)
+                attachment = Attachments(sku=payload.sku)
                 session.add(attachment)
 
             attachment.display_name = payload.display_name
@@ -640,7 +700,8 @@ def get_all_mechs():
             stmt = (
                 select(Mech)
                 .options(
-                    selectinload(Mech.weapon_links).selectinload(MechWeapon.weapon)
+                    selectinload(Mech.weapon_links).selectinload(MechWeapon.weapon),
+                    selectinload(Mech.attachments),
                 )
                 .order_by(Mech.name)
             )
@@ -667,6 +728,17 @@ def get_all_mechs():
                         }
                     })
 
+                # Chassis-level equipment fitted onto this mech.
+                attachments_payload = [{
+                    "sku": a.sku,
+                    "display_name": a.display_name,
+                    "to_hit_modifier": a.to_hit_modifier,
+                    "cluster_modifier": a.cluster_modifier,
+                    "tonnage": a.tonnage,
+                    "tech_base": a.tech_base,
+                    "attachment_type": a.attachment_type.value if a.attachment_type else None,
+                } for a in mech.attachments]
+
                 # Construct the master Mech object
                 response_data.append({
                     "id": mech.id,
@@ -675,7 +747,8 @@ def get_all_mechs():
                     "tech_base": mech.tech_base.name.lower() if hasattr(mech.tech_base, 'name') else str(
                         mech.tech_base),
                     "tonnage": mech.tonnage,
-                    "weapon_links": weapons_payload
+                    "weapon_links": weapons_payload,
+                    "attachments": attachments_payload,
                 })
 
             return response_data

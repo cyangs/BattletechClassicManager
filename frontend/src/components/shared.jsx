@@ -21,7 +21,7 @@ export function AmmoBadge({ use }) {
           : 'bg-green-950/60 text-green-400 border border-green-900'
       }`}
     >
-      {use ? 'Yes' : 'No'}
+      {use ? 'Uses Ammo' : 'No'}
     </span>
   );
 }
