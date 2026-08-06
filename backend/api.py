@@ -365,7 +365,8 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
         unit = session.execute(
             select(SessionMech)
             .options(
-                selectinload(SessionMech.weapons).selectinload(SessionMechWeapon.weapon),
+                selectinload(SessionMech.weapons)
+                .selectinload(SessionMechWeapon.weapon),
                 selectinload(SessionMech.master_mech),
             )
             .where(SessionMech.id == payload.session_mech_id)
@@ -374,6 +375,9 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             raise HTTPException(status_code=404, detail="Mech not found in this session")
 
         attacker_name = unit.master_mech.name if unit.master_mech else "Unknown Chassis"
+
+        # TODO swap to session mech ID
+        # TODO needed for mech attachments like TC
 
         # Each entry in weapon_link_ids is one shot, referencing a session-owned
         # weapon instance. A weapon appears once per instance the player chose to
@@ -397,7 +401,7 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             target_name = target.name
 
         result = CombatResolver(WeaponRepository(SessionLocal)).resolve_fire(
-            attacker_name,
+            unit,
             weapon_names,
             pilot_gunnery_skill=payload.pilot_gunnery_skill,
             target_name=target_name,

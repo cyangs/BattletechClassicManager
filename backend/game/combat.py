@@ -24,6 +24,7 @@ from game.fire_calculations import (
     roll_1d6,
     roll_2d6,
 )
+from models import SessionMech
 
 
 class CombatResolver:
@@ -47,7 +48,7 @@ class CombatResolver:
 
     def resolve_fire(
         self,
-        attacker_name: str,
+        unit: SessionMech,
         weapon_names: List[str],
         pilot_gunnery_skill: int,
         target_name: str = None,
@@ -99,6 +100,9 @@ class CombatResolver:
         distance = int(distance_modifier or 0)
         lookup_cache: dict = {}
 
+        ## TODO iterate through unit.attachments and see if anything has a to_hit_modifier
+
+
         for name in weapon_names:
             """Look the weapon up in the database (cached)"""
             if name not in lookup_cache:
@@ -131,7 +135,7 @@ class CombatResolver:
 
         hits = sum(1 for s in shots if s.hit)
         return {
-            "attacker": attacker_name,
+            "attacker": unit.master_mech.name,
             "target": target_name,
             "target_movement_modifier": int(target_movement_modifier or 0),
             "shots": [serialize_shot(s) for s in shots],
