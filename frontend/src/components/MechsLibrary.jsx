@@ -251,14 +251,14 @@ function MechAttachments({ mech, reload }) {
 }
 
 const MECH_LOCATIONS = [
-  'Head',
-  'Center Torso',
-  'Left Torso',
-  'Right Torso',
-  'Left Arm',
-  'Right Arm',
-  'Left Leg',
-  'Right Leg',
+  'HD',
+  'CT',
+  'LT',
+  'RT',
+  'LA',
+  'RA',
+  'LL',
+  'RL',
 ];
 
 function MechWeapons({ mech, weapons, reload }) {
