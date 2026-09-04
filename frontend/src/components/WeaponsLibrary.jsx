@@ -21,6 +21,17 @@ const WEAPON_TYPES = ['MISSILE', 'BALLISTIC', 'LASER', 'PPC', 'ARTY', 'OTHER'];
 // Ballistic-only sub-classification, stored on modifications.weapon_type.
 const BALLISTIC_SUBTYPES = ['NONE', 'ULTRA'];
 
+// Missile-only sub-classification, stored on modifications.weapon_type.
+const MISSILE_SUBTYPES = ['NONE', 'STREAK'];
+
+// Missile fire-control attachments, stored on modifications.attachments.
+const MISSILE_ATTACHMENTS = [
+  { value: 'NONE', label: 'None' },
+  { value: 'ARTEMISIV', label: 'Artemis IV' },
+  { value: 'ARTEMISV', label: 'Artemis V' },
+  { value: 'APOLLO', label: 'Apollo' },
+];
+
 // =====================================================================
 // TAB 2: WEAPONS LIBRARY — weapons / attachments / ammo catalogs
 // =====================================================================
@@ -187,18 +198,32 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
   const [ballisticSubtype, setBallisticSubtype] = useState(
     weapon?.modifications?.weapon_type || 'NONE',
   );
+  const [missileSubtype, setMissileSubtype] = useState(
+    weapon?.modifications?.weapon_type || 'NONE',
+  );
+  const [missileAttachment, setMissileAttachment] = useState(
+    weapon?.modifications?.attachments?.[0] || 'NONE',
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const num = (v) => (v === '' || v == null ? null : parseInt(v, 10));
 
-    // Preserve any existing modifications, then apply the ballistic sub-type.
+    // Preserve any existing modifications, then apply the type's sub-class
+    // (ballistic ULTRA / missile STREAK) as modifications.weapon_type.
     const modifications = { ...(weapon?.modifications || {}) };
-    if (weaponType === 'BALLISTIC' && ballisticSubtype === 'ULTRA') {
-      modifications.weapon_type = 'ULTRA';
-    } else {
-      delete modifications.weapon_type;
+    delete modifications.weapon_type;
+    if (weaponType === 'BALLISTIC' && ballisticSubtype !== 'NONE') {
+      modifications.weapon_type = ballisticSubtype;
+    } else if (weaponType === 'MISSILE' && missileSubtype !== 'NONE') {
+      modifications.weapon_type = missileSubtype;
+    }
+
+    // Missile fire-control attachment -> modifications.attachments (a list).
+    delete modifications.attachments;
+    if (weaponType === 'MISSILE' && missileAttachment !== 'NONE') {
+      modifications.attachments = [missileAttachment];
     }
 
     const payload = {
@@ -298,6 +323,42 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
                   {BALLISTIC_SUBTYPES.map((s) => (
                     <option key={s} value={s}>
                       {s.charAt(0) + s.slice(1).toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {weaponType === 'MISSILE' && (
+              <div>
+                <label className="block text-xs uppercase text-gray-400 mb-1">Missile Class</label>
+                <select
+                  name="missile_subtype"
+                  value={missileSubtype}
+                  onChange={(e) => setMissileSubtype(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+                >
+                  {MISSILE_SUBTYPES.map((s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0) + s.slice(1).toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {weaponType === 'MISSILE' && (
+              <div>
+                <label className="block text-xs uppercase text-gray-400 mb-1">Attachment</label>
+                <select
+                  name="missile_attachment"
+                  value={missileAttachment}
+                  onChange={(e) => setMissileAttachment(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+                >
+                  {MISSILE_ATTACHMENTS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
                     </option>
                   ))}
                 </select>

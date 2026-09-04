@@ -10,21 +10,22 @@ same so the frontend doesn't need to change when the real rules land.
 from typing import List, Optional
 
 from database.dao.weapon_repository import WeaponRepository
-# WeaponShot and its supporting types live in their own module now; re-exported
-# here so existing ``from game.combat import WeaponShot`` style imports keep
-# working.
-from game.fire_calculations import (
+from game.fire import (
     RangeBand,
     RANGE_BAND_MODIFIER,
     DiceRollsResults,
     ClusterHit,
     WeaponShot,
-    FireCalculations,
+    BaseShotResolver,
+    StandardShotResolver,
+    ClusterShotResolver,
+    UltraShotResolver,
     serialize_shot,
     roll_1d6,
     roll_2d6,
 )
 from database.models.session import SessionMech
+from game.fire.streak import StreakShotResolver
 
 
 class CombatResolver:
@@ -101,11 +102,15 @@ class CombatResolver:
             + int(additional_modifier or 0)
         )
 
+        ## TODO iterate through unit.attachments and see if anything has a to_hit_modifier
+        """Targeting Computer modifier check"""
+        targeting_computer_active = False
+        for attachment in unit.attachments:
+            if attachment.attachment_sku == "TC" or attachment.attachment_sku == "CTC":
+                targeting_computer_active = True
+
         distance = int(distance_modifier or 0)
         lookup_cache: dict = {}
-
-        ## TODO iterate through unit.attachments and see if anything has a to_hit_modifier
-
 
         for index, name in enumerate(weapon_names):
             """Look the weapon up in the database (cached)"""
@@ -129,13 +134,65 @@ class CombatResolver:
             # Per-weapon double-tap decision, index-aligned with weapon_names.
             double_tap = bool(double_tap_flags[index]) if double_tap_flags else False
 
-            shot = FireCalculations(
-                weapon=db_weapon,
-                target_number=target_number,
-                target_facing=target_facing,
-                range_band=band,
-                double_tap=double_tap,
-            ).resolve()
+            # Pick the resolver based on weapon type and player choice.
+            # ULTRA AC double-tap -> UltraShotResolver
+            # ULTRA AC single-tap -> StandardShotResolver (fires one round normally)
+            # Cluster weapon      -> ClusterShotResolver
+            # Streak weapon       -> StreakShotResolver
+            # Everything else     -> StandardShotResolver
+            modifications = getattr(db_weapon, "modifications", None) or {}
+            weapon_type = modifications.get("weapon_type")
+            # Missile fire-control attachments (e.g. ["ARTEMISIV"]); threaded
+            # into every resolver so the shot rules can account for them.
+            attachments = modifications.get("attachments") or []
+
+            # Targeting Computer: -1 to-hit for Standard and ULTRA weapons.
+            # Cluster-spread weapons (LRM, SRM) and Streak do not benefit.
+            # Guard against None (out-of-range shots have no target number).
+            _TC_INELIGIBLE = {True}  # db_weapon.cluster
+            tc_applies = (
+                targeting_computer_active
+                and target_number is not None
+                and not db_weapon.cluster
+                and weapon_type not in ("STREAK",)
+            )
+            if tc_applies:
+                target_number -= 1
+
+            if weapon_type == "ULTRA" and double_tap:
+                resolver: BaseShotResolver = UltraShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments
+                )
+            elif weapon_type == "STREAK":
+                resolver = StreakShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            elif db_weapon.cluster:
+                resolver = ClusterShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            else:
+                resolver = StandardShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+
+            shot = resolver.resolve()
 
             # FireCalculations zeroes damage on a miss / out-of-range.
             total_damage += shot.damage
