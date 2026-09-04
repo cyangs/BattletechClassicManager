@@ -13,9 +13,9 @@ class TechBaseEnum(Enum):
             # 2. Clean up spaces and convert to lowercase
             clean_value = value.strip().lower()
 
-            # 3. Check if it matches any of the enum values
+            # 3. Check if it matches any of the enum values (case-insensitive)
             for member in cls:
-                if member.value == clean_value:
+                if member.value.lower() == clean_value:
                     return member
 
         # Return None if no match is found (Python will then raise a ValueError)
