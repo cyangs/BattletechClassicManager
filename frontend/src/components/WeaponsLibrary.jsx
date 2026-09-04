@@ -15,6 +15,12 @@ const CATALOG_TABS = [
   { id: 'ammo', label: '🧨 Ammo' },
 ];
 
+// Weapon system categories (mirrors backend WeaponType enum).
+const WEAPON_TYPES = ['MISSILE', 'BALLISTIC', 'LASER', 'PPC', 'ARTY', 'OTHER'];
+
+// Ballistic-only sub-classification, stored on modifications.weapon_type.
+const BALLISTIC_SUBTYPES = ['NONE', 'ULTRA'];
+
 // =====================================================================
 // TAB 2: WEAPONS LIBRARY — weapons / attachments / ammo catalogs
 // =====================================================================
@@ -177,10 +183,24 @@ function WeaponsCatalog({ weapons, reload }) {
 }
 
 function WeaponEditor({ weapon, onClose, onSaved }) {
+  const [weaponType, setWeaponType] = useState((weapon?.type || '').toUpperCase());
+  const [ballisticSubtype, setBallisticSubtype] = useState(
+    weapon?.modifications?.weapon_type || 'NONE',
+  );
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const num = (v) => (v === '' || v == null ? null : parseInt(v, 10));
+
+    // Preserve any existing modifications, then apply the ballistic sub-type.
+    const modifications = { ...(weapon?.modifications || {}) };
+    if (weaponType === 'BALLISTIC' && ballisticSubtype === 'ULTRA') {
+      modifications.weapon_type = 'ULTRA';
+    } else {
+      delete modifications.weapon_type;
+    }
+
     const payload = {
       id: weapon ? weapon.id : null,
       name: fd.get('name'),
@@ -197,6 +217,8 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
       long_range_modifier: num(fd.get('long_range_modifier')),
       num_shots: num(fd.get('num_shots')),
       cluster_damage: num(fd.get('cluster_damage')),
+      type: weaponType || null,
+      modifications: Object.keys(modifications).length ? modifications : null,
     };
 
     fetch(`${API}/api/weapons/save`, {
@@ -245,6 +267,43 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
             maxLength={50}
             className="font-mono text-xs"
           />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase text-gray-400 mb-1">Type</label>
+              <select
+                name="type"
+                value={weaponType}
+                onChange={(e) => setWeaponType(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="">— None —</option>
+                {WEAPON_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t.charAt(0) + t.slice(1).toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {weaponType === 'BALLISTIC' && (
+              <div>
+                <label className="block text-xs uppercase text-gray-400 mb-1">Ballistic Class</label>
+                <select
+                  name="ballistic_subtype"
+                  value={ballisticSubtype}
+                  onChange={(e) => setBallisticSubtype(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+                >
+                  {BALLISTIC_SUBTYPES.map((s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0) + s.slice(1).toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <LabeledInput name="damage" label="Damage" type="number" min="0" defaultValue={weapon?.damage ?? 0} required />

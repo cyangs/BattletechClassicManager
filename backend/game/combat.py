@@ -7,7 +7,7 @@ critical hits, heat effects, etc.) should replace the logic in
 same so the frontend doesn't need to change when the real rules land.
 """
 
-from typing import List
+from typing import List, Optional
 
 from database.dao.weapon_repository import WeaponRepository
 # WeaponShot and its supporting types live in their own module now; re-exported
@@ -24,7 +24,7 @@ from game.fire_calculations import (
     roll_1d6,
     roll_2d6,
 )
-from models import SessionMech
+from database.models.session import SessionMech
 
 
 class CombatResolver:
@@ -58,6 +58,7 @@ class CombatResolver:
         target_movement_modifier: int = 0,
         self_movement_modifier: int = 0,
         partial_cover: bool = False,
+        double_tap_flags: Optional[List[bool]] = None,
     ) -> dict:
         """Resolve a mech firing its selected weapons.
 
@@ -65,6 +66,9 @@ class CombatResolver:
             ``weapons_master.name``). A weapon firing more than once appears in
             the list once per shot. Each name is looked up in the database and
             resolved using the found record's stats.
+        double_tap_flags: optional per-weapon double-tap decisions, index-aligned
+            with ``weapon_names`` (True where that shot double-taps). ULTRA
+            ballistics use this to fire a second round.
         pilot_gunnery_skill: the attacker's gunnery skill — the base to-hit number.
         target_name: display name of the enemy mech being fired upon (optional).
         target_facing: which arc the target is presenting ("Left Side",
@@ -103,7 +107,7 @@ class CombatResolver:
         ## TODO iterate through unit.attachments and see if anything has a to_hit_modifier
 
 
-        for name in weapon_names:
+        for index, name in enumerate(weapon_names):
             """Look the weapon up in the database (cached)"""
             if name not in lookup_cache:
                 lookup_cache[name] = self.weapon_repository.fetch_weapon_by_name(name)
@@ -122,11 +126,15 @@ class CombatResolver:
             # Heat accrues whether the shot lands (or is in range).
             total_heat += int(db_weapon.heat or 0)
 
+            # Per-weapon double-tap decision, index-aligned with weapon_names.
+            double_tap = bool(double_tap_flags[index]) if double_tap_flags else False
+
             shot = FireCalculations(
                 weapon=db_weapon,
                 target_number=target_number,
                 target_facing=target_facing,
                 range_band=band,
+                double_tap=double_tap,
             ).resolve()
 
             # FireCalculations zeroes damage on a miss / out-of-range.

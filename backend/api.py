@@ -11,7 +11,7 @@ from database.models.mech import Mech
 from database.models.weapon import MechWeapon, Weapon
 from database.models.attachments import Attachments
 from database.models.ammo_type import AmmoType
-from database.models.enums import TechBaseEnum, AttachmentType
+from database.models.enums import TechBaseEnum, AttachmentType, WeaponType
 import sqlalchemy as sa
 
 from database.models.session import (
@@ -55,6 +55,7 @@ class FireWeaponsRequest(BaseModel):
     mech_id: int                            # master Mech id of the firing chassis (fallback label)
     session_mech_id: int                    # SessionMech id of the firing unit
     weapon_link_ids: List[int]              # SessionMechWeapon.id values that were selected to fire
+    double_tap_ids: List[int] = []          # SessionMechWeapon.id values firing double-tap (ULTRA ballistics)
     pilot_gunnery_skill: int = 4            # attacker's gunnery skill (base to-hit number)
     target_mech_id: Optional[int] = None    # master Mech id of the enemy being fired upon
     facing: str = "Front/Rear"              # target arc: "Left Side", "Front/Rear", "Right Side"
@@ -83,6 +84,10 @@ class WeaponSaveRequest(BaseModel):
     # Cluster weapons: shot count and damage per cluster hit.
     num_shots: Optional[int] = Field(None, ge=1)
     cluster_damage: Optional[int] = Field(None, ge=0)
+    # Weapon system category (MISSILE, BALLISTIC, LASER, PPC, ARTY, OTHER).
+    type: Optional[str] = None
+    # Free-form JSON blob (e.g. {"weapon_type": "ULTRA"} for autocannons).
+    modifications: Optional[dict] = None
 
 
 # Request Validation Schema using Pydantic
@@ -384,11 +389,18 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
         # fire — duplicates are meaningful and must not be collapsed. Destroyed
         # weapons cannot fire and are silently skipped.
         weapons_by_id = {w.id: w for w in unit.weapons}
-        weapon_names = [
-            weapons_by_id[wid].weapon.name
-            for wid in payload.weapon_link_ids
-            if wid in weapons_by_id and not weapons_by_id[wid].destroyed
-        ]
+        double_tap_ids = set(payload.double_tap_ids)
+        # Build the fireable shot list, keeping a per-shot double-tap flag aligned
+        # by index with the weapon names (the instance identity is only available
+        # here, before names collapse duplicates).
+        weapon_names = []
+        double_tap_flags = []
+        for wid in payload.weapon_link_ids:
+            session_weapon = weapons_by_id.get(wid)
+            if session_weapon is None or session_weapon.destroyed:
+                continue
+            weapon_names.append(session_weapon.weapon.name)
+            double_tap_flags.append(wid in double_tap_ids)
 
         if not weapon_names:
             raise HTTPException(status_code=400, detail="No weapons selected to fire")
@@ -411,6 +423,7 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
             self_movement_modifier=payload.self_movement_modifier,
             target_movement_modifier=payload.target_movement_modifier,
             partial_cover=payload.partial_cover,
+            double_tap_flags=double_tap_flags,
         )
         result["turn"] = game.current_turn
 
@@ -551,6 +564,10 @@ def get_all_sessions():
                     "heat": w.weapon.heat if w.weapon else None,
                     "disabled": w.disabled,
                     "destroyed": w.destroyed,
+                    # Ballistic sub-class from the master weapon's modifications
+                    # (e.g. "ULTRA" enables double-tap firing).
+                    "weapon_type": (w.weapon.modifications or {}).get("weapon_type")
+                        if w.weapon else None,
                 } for w in unit.weapons]
                 attachments = [{
                     "id": a.id,                    # SessionMechAttachment id (destroy key)
@@ -663,6 +680,17 @@ def save_or_update_weapon(payload: WeaponSaveRequest):
             weapon.num_shots = payload.num_shots
             weapon.cluster_damage = payload.cluster_damage
 
+            if payload.type:
+                try:
+                    weapon.type = WeaponType(payload.type)
+                except ValueError:
+                    raise HTTPException(status_code=400,
+                                        detail=f"Invalid weapon type '{payload.type}'.")
+            else:
+                weapon.type = None
+
+            weapon.modifications = payload.modifications
+
             session.flush()  # Forces ID assignment for the create path
             return {"status": "success", "action": status, "weapon_id": weapon.id}
 
@@ -689,7 +717,8 @@ def get_all_weapons():
             "long_range_modifier": w.long_range_modifier,
             "num_shots": w.num_shots,
             "cluster_damage": w.cluster_damage,
-            "type": w.type
+            "type": w.type,
+            "modifications": w.modifications,
         } for w in weapons]
 
 

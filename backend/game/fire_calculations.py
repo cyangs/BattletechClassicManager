@@ -121,12 +121,15 @@ class FireCalculations:
         target_number: Optional[int],
         target_facing: str,
         range_band: Optional[RangeBand] = None,
+        double_tap: bool = False,
     ):
         self.weapon = weapon
         self.target_number = target_number
         self.target_facing = target_facing
         self.range_band = range_band
         self.critical_hit = False
+        # Whether the player chose to double-tap this shot (ULTRA ballistics).
+        self.double_tap = double_tap
 
     def resolve(self) -> WeaponShot:
         """Roll out the shot and return the populated record."""
@@ -153,85 +156,144 @@ class FireCalculations:
                 all_rolls=all_rolls,
             )
 
-        """ Shot hit. Roll hit locations. """
-        """ Weapon clusters. Roll clusters and hit locations. """
+        # An ULTRA autocannon resolves as a normal (non-cluster) shot, but a
+        # double-tap fires a second round. Hand the double-tap decision to the
+        # Ultra-AC rules to resolve the extra round(s).
+        if self._weapon_type() == "ULTRA":
+            if self.double_tap:
+                return self._resolve_ultra_shot(target_number, to_hit_roll, all_rolls)
+            else:
+                return self._resolve_standard_shot(target_number, to_hit_roll, all_rolls)
+
+
+        """ Shot hit. Route to cluster or standard resolution. """
         if self.weapon.cluster:
-            cluster_hit_roll = roll_1d6() + roll_1d6()
-            cluster_hits = ClusterHitsTable.get_hits(
-                max_cluster_size=self.weapon.num_shots,
-                roll=cluster_hit_roll,
-            )  # total missiles/pellets that hit
+            return self._resolve_cluster_shot(target_number, to_hit_roll, all_rolls)
+        return self._resolve_standard_shot(target_number, to_hit_roll, all_rolls)
 
-            # Damage dealt by a single missile/pellet.
-            # SRM6: 12 damage / 6 shots = 2 dmg per missile
-            # LRM20: 20 damage / 20 shots = 1 dmg per missile
-            damage_per_missile = self.weapon.damage // self.weapon.num_shots
 
-            # How many missiles are grouped together per location roll.
-            # weapon.cluster_damage is expressed in DAMAGE, not missile count,
-            # so convert it to a missile count by dividing out damage_per_missile.
-            # LRM20: cluster_damage=5, damage_per_missile=1 -> 5 missiles per group
-            # SRM6:  cluster_damage=2, damage_per_missile=2 -> 1 missile per group
-            missiles_per_group = (self.weapon.cluster_damage or damage_per_missile) // damage_per_missile
+    def _resolve_ultra_shot(self, target_number: int, to_hit_roll: int, all_rolls: DiceRollsResults) -> WeaponShot:
 
-            full_groups, remainder = divmod(cluster_hits, missiles_per_group)
-            groups = [missiles_per_group] * full_groups
-            if remainder:
-                groups.append(remainder)
+        cluster_hit_roll = roll_1d6() + roll_1d6()
+        cluster_hits = ClusterHitsTable.get_hits(
+            max_cluster_size=self.weapon.num_shots,
+            roll=cluster_hit_roll,
+        )  # ULTRA mode, see how many rounds hit
 
-            """ Iterate through the groupings and roll location """
-            group_hits: list[ClusterHit] = []
-            for group_size in groups:
-                """ simplify things and just roll 2D6; Dont track individual dice rolls """
-                cluster_location_roll = roll_1d6() + roll_1d6()
-
-                """ Cluster through-critical hit resolution"""
-                """ TODO: Refactor so not duplicating logic"""
-                critical_hit = cluster_location_roll == 2
-                if critical_hit:
-                    cluster_location_roll = roll_1d6() + roll_1d6()
-
-                cluster_hit_location = self._hit_location(cluster_location_roll)
-                group_hits.append(
-                    ClusterHit(
-                        location=cluster_hit_location,
-                        damage=group_size * damage_per_missile,
-                        critical_hit=critical_hit,
-                    )
+        """ Iterate through the groupings and roll location """
+        group_hits: list[ClusterHit] = []
+        for i in range(1, cluster_hits + 1):
+            """ simplify things and just roll 2D6; Dont track individual dice rolls """
+            cluster_location_roll, critical_hit, _ = self._resolve_location_with_tac()
+            cluster_hit_location = self._hit_location(cluster_location_roll)
+            group_hits.append(
+                ClusterHit(
+                    location=cluster_hit_location,
+                    damage=self.weapon.cluster_damage,
+                    critical_hit=critical_hit,
                 )
-
-            """ Iterate through and the hits and sum up the total damage """
-            total_damage = sum(hit.damage for hit in group_hits)
-
-            """ A cluster spread has no single hit location; damage is the total that landed. """
-            return self._shot(
-                target_number=target_number,
-                roll=to_hit_roll,
-                hit=True,
-                hit_location=None,
-                damage=total_damage,
-                all_rolls=all_rolls,
-                cluster_roll=cluster_hit_roll,
-                cluster_hits_landed=cluster_hits,
-                cluster_hits=group_hits,
             )
 
+        """ Iterate through and the hits and sum up the total damage """
+        # Damage dealt by a single burst.
+        # ULTRA AC 10: 10 damage * NUM cluster hits = 20 damage total.
+        total_damage = sum(hit.damage for hit in group_hits)
+
+        """ A cluster spread has no single hit location; damage is the total that landed. """
+        return self._shot(
+            target_number=target_number,
+            roll=to_hit_roll,
+            hit=True,
+            hit_location=None,
+            damage=total_damage,
+            all_rolls=all_rolls,
+            cluster_roll=cluster_hit_roll,
+            cluster_hits_landed=cluster_hits,
+            cluster_hits=group_hits,
+        )
+
+
+
+    def _resolve_cluster_shot(
+        self,
+        target_number: int,
+        to_hit_roll: int,
+        all_rolls: DiceRollsResults,
+    ) -> WeaponShot:
+        """Resolve a cluster weapon hit: roll the cluster table then scatter damage across locations."""
+        """ Weapon clusters. Roll clusters and hit locations. """
+
+        cluster_hit_roll = roll_1d6() + roll_1d6()
+        cluster_hits = ClusterHitsTable.get_hits(
+            max_cluster_size=self.weapon.num_shots,
+            roll=cluster_hit_roll,
+        )  # total missiles/pellets that hit
+
+        # Damage dealt by a single missile/pellet.
+        # SRM6: 12 damage / 6 shots = 2 dmg per missile
+        # LRM20: 20 damage / 20 shots = 1 dmg per missile
+        damage_per_missile = self.weapon.damage // self.weapon.num_shots
+
+        # How many missiles are grouped together per location roll.
+        # weapon.cluster_damage is expressed in DAMAGE, not missile count,
+        # so convert it to a missile count by dividing out damage_per_missile.
+        # LRM20: cluster_damage=5, damage_per_missile=1 -> 5 missiles per group
+        # SRM6:  cluster_damage=2, damage_per_missile=2 -> 1 missile per group
+        missiles_per_group = (self.weapon.cluster_damage or damage_per_missile) // damage_per_missile
+
+        full_groups, remainder = divmod(cluster_hits, missiles_per_group)
+        groups = [missiles_per_group] * full_groups
+        if remainder:
+            groups.append(remainder)
+
+        """ Iterate through the groupings and roll location """
+        group_hits: list[ClusterHit] = []
+        for group_size in groups:
+            """ simplify things and just roll 2D6; Dont track individual dice rolls """
+            cluster_location_roll, critical_hit, _ = self._resolve_location_with_tac()
+            cluster_hit_location = self._hit_location(cluster_location_roll)
+            group_hits.append(
+                ClusterHit(
+                    location=cluster_hit_location,
+                    damage=group_size * damage_per_missile,
+                    critical_hit=critical_hit,
+                )
+            )
+
+        """ Iterate through and the hits and sum up the total damage """
+        total_damage = sum(hit.damage for hit in group_hits)
+
+        """ A cluster spread has no single hit location; damage is the total that landed. """
+        return self._shot(
+            target_number=target_number,
+            roll=to_hit_roll,
+            hit=True,
+            hit_location=None,
+            damage=total_damage,
+            all_rolls=all_rolls,
+            cluster_roll=cluster_hit_roll,
+            cluster_hits_landed=cluster_hits,
+            cluster_hits=group_hits,
+        )
+
+    def _resolve_standard_shot(
+        self,
+        target_number: int,
+        to_hit_roll: int,
+        all_rolls: DiceRollsResults,
+    ) -> WeaponShot:
+
+        """Resolve a non-cluster weapon hit: roll one location and apply TAC if needed."""
         """ Weapon does NOT cluster. Just roll the location"""
-        hit_location_roll_1 = roll_1d6()
-        hit_location_roll_2 = roll_1d6()
-        all_rolls.location_1 = hit_location_roll_1
-        all_rolls.location_2 = hit_location_roll_2
+        hit_location_roll, critical_hit, tac_rolls = self._resolve_location_with_tac()
+        roll_1, roll_2 = tac_rolls[:2]
+        all_rolls.location_1 = roll_1
+        all_rolls.location_2 = roll_2
 
-        hit_location_roll = hit_location_roll_1 + hit_location_roll_2
-
-        """ Through armor critical resolution """
-        critical_hit = hit_location_roll == 2
-        if critical_hit:
-            tac_roll_1 = roll_1d6()
-            tac_roll_2 = roll_1d6()
-            hit_location_roll = tac_roll_1 + tac_roll_2
-            all_rolls.tac_reroll_1 = tac_roll_1
-            all_rolls.tac_reroll_2 = tac_roll_2
+        """ Through armor critical resolution — reroll dice are stored for display """
+        if critical_hit and len(tac_rolls) == 4:
+            all_rolls.tac_reroll_1 = tac_rolls[2]
+            all_rolls.tac_reroll_2 = tac_rolls[3]
 
         return self._shot(
             target_number=target_number,
@@ -259,6 +321,37 @@ class FireCalculations:
         fields.update(overrides)
         return WeaponShot(**fields)
 
+    def _resolve_location_with_tac(self) -> tuple[int, bool, list[int]]:
+        """Roll a hit location and apply through-armor critical (TAC) resolution.
+
+        Returns a tuple of:
+          - ``final_roll``  — the 2d6 sum to look up in the location table
+          - ``critical_hit`` — True when the initial roll was a 2 (TAC triggered)
+          - ``raw_dice``    — list of the individual d6 values rolled, in order:
+              [loc_1, loc_2] for a normal hit, or
+              [loc_1, loc_2, tac_1, tac_2] when a TAC reroll occurred.
+        """
+        loc_1, loc_2 = roll_1d6(), roll_1d6()
+        roll = loc_1 + loc_2
+        critical_hit = roll == 2
+        if critical_hit:
+            tac_1, tac_2 = roll_1d6(), roll_1d6()
+            roll = tac_1 + tac_2
+            return roll, critical_hit, [loc_1, loc_2, tac_1, tac_2]
+        return roll, critical_hit, [loc_1, loc_2]
+
+    def _band_value(self, short, medium, long):
+        """Return the value that corresponds to this shot's range band.
+
+        A convenience for the common pattern of mapping SHORT/MEDIUM/LONG to
+        three weapon attributes. Returns ``None`` when ``range_band`` is unset.
+        """
+        return {
+            RangeBand.SHORT: short,
+            RangeBand.MEDIUM: medium,
+            RangeBand.LONG: long,
+        }.get(self.range_band)
+
     def _adjusted_target_number(self) -> int:
         """Apply the weapon's own per-band to-hit modifier, if any.
 
@@ -271,13 +364,20 @@ class FireCalculations:
             return self.target_number
         return self.target_number + modifier
 
+    def _weapon_type(self) -> Optional[str]:
+        """The weapon's sub-classification from its modifications blob (e.g. 'ULTRA').
+
+        ``modifications`` is nullable, so guard against None.
+        """
+        return (getattr(self.weapon, "modifications", None) or {}).get("weapon_type")
+
     def _weapon_range_modifier(self) -> Optional[int]:
         """The weapon's stored to-hit modifier for this shot's range band."""
-        return {
-            RangeBand.SHORT: self.weapon.short_range_modifier,
-            RangeBand.MEDIUM: self.weapon.medium_range_modifier,
-            RangeBand.LONG: self.weapon.long_range_modifier,
-        }.get(self.range_band)
+        return self._band_value(
+            self.weapon.short_range_modifier,
+            self.weapon.medium_range_modifier,
+            self.weapon.long_range_modifier,
+        )
 
     def _hit_location(self, location_roll: int) -> str:
         table = _LOCATION_TABLE_BY_FACING.get(self.target_facing, FRONT_REAR_LOCATION_TABLE)
@@ -289,11 +389,11 @@ class FireCalculations:
         if not self.weapon.variable_damage or self.range_band is None:
             return flat
 
-        per_band = {
-            RangeBand.SHORT: self.weapon.short_range_damage,
-            RangeBand.MEDIUM: self.weapon.medium_range_damage,
-            RangeBand.LONG: self.weapon.long_range_damage,
-        }.get(self.range_band)
+        per_band = self._band_value(
+            self.weapon.short_range_damage,
+            self.weapon.medium_range_damage,
+            self.weapon.long_range_damage,
+        )
         # NULL per-band damage falls back to the flat damage value.
         return int(per_band) if per_band is not None else flat
 

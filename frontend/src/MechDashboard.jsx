@@ -575,6 +575,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
     location: w.location,
     heat: w.heat,
     destroyed: w.destroyed,
+    // ULTRA ballistics can double-tap (fire twice) in a single turn.
+    isUltra: (w.weapon_type || '').toUpperCase() === 'ULTRA',
   }));
   const attachments = unit.attachments ?? [];
   // A logged fire this turn means this unit has already fired (Fire is spent
@@ -582,6 +584,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
   const firedThisTurn = !!unit.fired_this_turn;
 
   const [selected, setSelected] = useState(() => new Set());
+  // Weapon instances flagged to double-tap this fire (ULTRA ballistics only).
+  const [doubleTap, setDoubleTap] = useState(() => new Set());
   const [targetUnitId, setTargetUnitId] = useState('');
   const [facing, setFacing] = useState('Front/Rear');
   const [selfMovementModifier, setSelfMovementModifier] = useState('0');
@@ -595,6 +599,14 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
 
   const toggle = (id) =>
     setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleDoubleTap = (id) =>
+    setDoubleTap((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -619,6 +631,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
         session_mech_id: unit.id,
         // One link id per instance fired; a link fires once per entry.
         weapon_link_ids: weaponLinkIds,
+        // Of those, which fired double-tap (ULTRA ballistics).
+        double_tap_ids: weaponLinkIds.filter((id) => doubleTap.has(id)),
         pilot_gunnery_skill: unit.pilot_gunnery_skill ?? 4,
         target_mech_id: target ? target.mech_id : null,
         facing,
@@ -736,47 +750,62 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
             {instances.map((inst) => {
               const isDestroyed = inst.destroyed;
               return (
-                <div key={inst.key} className="flex items-center gap-2 py-1">
-                  <label
-                    className={`flex flex-1 min-w-0 items-center gap-2 text-sm ${
-                      isDestroyed
-                        ? 'text-gray-600 line-through cursor-not-allowed'
-                        : 'text-gray-300 cursor-pointer'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(inst.key) && !isDestroyed}
-                      onChange={() => toggle(inst.key)}
-                      disabled={isDestroyed || firedThisTurn}
-                      className="w-4 h-4 accent-amber-600 disabled:opacity-40"
-                    />
-                    <span className={`text-sm truncate font-mono ${isDestroyed ? 'text-red-500/70' : ''}`}>
-                      {inst.name}
-                    </span>
-                    <span className="text-xs text-gray-500 font-mono">· {inst.location}</span>
-                    {inst.heat != null && (
-                      <span className="text-xs text-gray-500 font-mono">· {inst.heat}</span>
-                    )}
-                    {isDestroyed && (
-                      <span className="text-[10px] uppercase font-bold text-red-400 border border-red-800 rounded px-1 no-underline">
-                        Destroyed
+                <div key={inst.key} className="py-1">
+                  <div className="flex items-center gap-2">
+                    <label
+                      className={`flex flex-1 min-w-0 items-center gap-2 text-sm ${
+                        isDestroyed
+                          ? 'text-gray-600 line-through cursor-not-allowed'
+                          : 'text-gray-300 cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(inst.key) && !isDestroyed}
+                        onChange={() => toggle(inst.key)}
+                        disabled={isDestroyed || firedThisTurn}
+                        className="w-4 h-4 accent-amber-600 disabled:opacity-40"
+                      />
+                      <span className={`text-sm truncate font-mono ${isDestroyed ? 'text-red-500/70' : ''}`}>
+                        {inst.name}
                       </span>
-                    )}
-                  </label>
-                  {/* Destroy / repair (combat damage) */}
-                  <button
-                    type="button"
-                    onClick={() => toggleDestroyed(inst)}
-                    title={isDestroyed ? 'Repair weapon' : 'Mark weapon destroyed'}
-                    className={`shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs font-bold leading-none ${
-                      isDestroyed
-                        ? 'bg-red-800 text-red-100 border border-red-600'
-                        : 'text-gray-500 hover:text-red-400 hover:bg-red-950/40'
-                    }`}
-                  >
-                    ✕
-                  </button>
+                      <span className="text-xs text-gray-500 font-mono">· {inst.location}</span>
+                      {inst.heat != null && (
+                        <span className="text-xs text-gray-500 font-mono">· {inst.heat} Heat</span>
+                      )}
+                      {isDestroyed && (
+                        <span className="text-[10px] uppercase font-bold text-red-400 border border-red-800 rounded px-1 no-underline">
+                          Destroyed
+                        </span>
+                      )}
+                    </label>
+                    {/* Destroy / repair (combat damage) */}
+                    <button
+                      type="button"
+                      onClick={() => toggleDestroyed(inst)}
+                      title={isDestroyed ? 'Repair weapon' : 'Mark weapon destroyed'}
+                      className={`shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs font-bold leading-none ${
+                        isDestroyed
+                          ? 'bg-red-800 text-red-100 border border-red-600'
+                          : 'text-gray-500 hover:text-red-400 hover:bg-red-950/40'
+                      }`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* ULTRA ballistics can fire twice in one turn. */}
+                  {inst.isUltra && !isDestroyed && (
+                    <label className="ml-6 mt-0.5 flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-orange-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={doubleTap.has(inst.key)}
+                        onChange={() => toggleDoubleTap(inst.key)}
+                        disabled={firedThisTurn}
+                        className="w-3.5 h-3.5 accent-orange-500 disabled:opacity-40"
+                      />
+                      Double Tap!
+                    </label>
+                  )}
                 </div>
               );
             })}

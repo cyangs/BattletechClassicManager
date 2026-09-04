@@ -60,6 +60,7 @@ def _weapon(
         long_range_modifier=None,
         num_shots=None,
         cluster_damage=None,
+        modifications=None,
 ):
     """Build a stand-in for a ``Weapon`` ORM row (attribute access).
 
@@ -84,11 +85,18 @@ def _weapon(
         long_range_modifier=long_range_modifier,
         num_shots=num_shots,
         cluster_damage=cluster_damage,
+        modifications=modifications,
         has_range_modifiers=any(
             m is not None
             for m in (short_range_modifier, medium_range_modifier, long_range_modifier)
         ),
     )
+
+
+def _unit(name="Atlas"):
+    """Stand-in for a ``SessionMech`` firing unit (``resolve_fire`` reads
+    ``unit.master_mech.name`` for the result's attacker label)."""
+    return types.SimpleNamespace(master_mech=types.SimpleNamespace(name=name))
 
 
 class FakeWeaponRepository:
@@ -343,7 +351,7 @@ class ResolveFireTest(unittest.TestCase):
     def test_looks_weapon_up_by_name_and_uses_db_stats(self):
         resolver = _resolver(_weapon(name="AC20", full_name="AC/20", damage=20, heat=7))
         with _all_sixes():
-            result = resolver.resolve_fire("Atlas", ["AC20"], pilot_gunnery_skill=4)
+            result = resolver.resolve_fire(_unit(), ["AC20"], pilot_gunnery_skill=4)
         shot = result["shots"][0]
         self.assertEqual(shot["weapon"], "AC/20")  # display name from the DB record
         self.assertEqual(shot["damage"], 20)
@@ -351,14 +359,14 @@ class ResolveFireTest(unittest.TestCase):
 
     def test_unknown_weapon_name_is_reported_not_dropped_silently(self):
         resolver = _resolver(_weapon(name="AC20"))
-        result = resolver.resolve_fire("Atlas", ["AC20", "Nope"], pilot_gunnery_skill=4)
+        result = resolver.resolve_fire(_unit(), ["AC20", "Nope"], pilot_gunnery_skill=4)
         self.assertEqual(result["unresolved_weapons"], ["Nope"])
         self.assertEqual(len(result["shots"]), 1)
 
     def test_repeated_lookup_is_cached_single_db_hit(self):
         repo = FakeWeaponRepository(_weapon(name="ML"))
         repo.fetch_weapon_by_name = mock.Mock(side_effect=repo.fetch_weapon_by_name)
-        CombatResolver(repo).resolve_fire("Atlas", ["ML", "ML", "ML"], pilot_gunnery_skill=4)
+        CombatResolver(repo).resolve_fire(_unit(), ["ML", "ML", "ML"], pilot_gunnery_skill=4)
         self.assertEqual(repo.fetch_weapon_by_name.call_count, 1)
 
     # -- guaranteed hit / miss ------------------------------------------
@@ -366,7 +374,7 @@ class ResolveFireTest(unittest.TestCase):
     def test_guaranteed_hit_applies_full_damage(self):
         resolver = _resolver(_weapon(name="ML", damage=20))
         with _all_sixes():
-            result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4)
+            result = resolver.resolve_fire(_unit(), ["ML"], pilot_gunnery_skill=4)
         self.assertEqual(result["hits"], 1)
         self.assertEqual(result["misses"], 0)
         self.assertEqual(result["total_damage"], 20)
@@ -374,7 +382,7 @@ class ResolveFireTest(unittest.TestCase):
     def test_guaranteed_miss_deals_no_damage_but_accrues_heat(self):
         resolver = _resolver(_weapon(name="ML", damage=20, heat=7))
         with _all_ones():
-            result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4)
+            result = resolver.resolve_fire(_unit(), ["ML"], pilot_gunnery_skill=4)
         self.assertEqual(result["hits"], 0)
         self.assertEqual(result["total_damage"], 0)
         self.assertEqual(result["total_heat"], 7)  # heat accrues even on a miss
@@ -385,7 +393,7 @@ class ResolveFireTest(unittest.TestCase):
     def test_repeated_name_fires_once_per_entry(self):
         resolver = _resolver(_weapon(name="ML", damage=1))
         with _all_sixes():
-            result = resolver.resolve_fire("Atlas", ["ML", "ML", "ML", "ML"], pilot_gunnery_skill=4)
+            result = resolver.resolve_fire(_unit(), ["ML", "ML", "ML", "ML"], pilot_gunnery_skill=4)
         self.assertEqual(len(result["shots"]), 4)
         self.assertEqual(result["total_damage"], 4)
 
@@ -394,7 +402,7 @@ class ResolveFireTest(unittest.TestCase):
     def test_target_number_is_gunnery_plus_range_bracket(self):
         resolver = _resolver(_weapon(name="ML", short_range=3, medium_range=6, long_range=9))
         # distance 5 is in the medium bracket (short 3 < 5 <= medium 6) -> +2
-        result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4, distance_modifier=5)
+        result = resolver.resolve_fire(_unit(), ["ML"], pilot_gunnery_skill=4, distance_modifier=5)
         self.assertEqual(result["shots"][0]["target_number"], 4 + 2)
         self.assertEqual(result["shots"][0]["range_band"], "MEDIUM")
 
@@ -402,7 +410,7 @@ class ResolveFireTest(unittest.TestCase):
         resolver = _resolver(_weapon(name="ML"))
         # GATOR: gunnery 3 + attacker move 1 + target move 2 + additional 1 + short bracket 0
         result = resolver.resolve_fire(
-            "Atlas", ["ML"], pilot_gunnery_skill=3, distance_modifier=2,
+            _unit(), ["ML"], pilot_gunnery_skill=3, distance_modifier=2,
             target_movement_modifier=2, self_movement_modifier=1, additional_modifier=1,
         )
         self.assertEqual(result["shots"][0]["target_number"], 3 + 1 + 2 + 1)
@@ -412,7 +420,7 @@ class ResolveFireTest(unittest.TestCase):
         resolver = _resolver(_weapon(name="ML", short_range=3, medium_range=6, long_range=9))
         with _all_sixes():
             result = resolver.resolve_fire(
-                "Atlas", ["ML", "ML"], pilot_gunnery_skill=4, distance_modifier=8  # long
+                _unit(), ["ML", "ML"], pilot_gunnery_skill=4, distance_modifier=8  # long
             )
         tns = {s["target_number"] for s in result["shots"]}
         self.assertEqual(tns, {4 + 4})
@@ -421,7 +429,7 @@ class ResolveFireTest(unittest.TestCase):
 
     def test_beyond_long_range_is_out_of_range(self):
         resolver = _resolver(_weapon(name="ML", long_range=9))
-        result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4, distance_modifier=15)
+        result = resolver.resolve_fire(_unit(), ["ML"], pilot_gunnery_skill=4, distance_modifier=15)
         shot = result["shots"][0]
         self.assertIsNone(shot["target_number"])
         self.assertFalse(shot["hit"])
@@ -439,7 +447,7 @@ class ResolveFireTest(unittest.TestCase):
         )
         with _all_sixes():  # guaranteed hit so damage is applied
             result = _resolver(weapon).resolve_fire(
-                "Atlas", ["Ultra"], pilot_gunnery_skill=4, distance_modifier=8  # long bracket
+                _unit(), ["Ultra"], pilot_gunnery_skill=4, distance_modifier=8  # long bracket
             )
         self.assertEqual(result["shots"][0]["damage"], 4)
 
@@ -447,7 +455,7 @@ class ResolveFireTest(unittest.TestCase):
         weapon = _weapon(name="Ultra", damage=6, variable_damage=True, short_range_damage=None)
         with _all_sixes():
             result = _resolver(weapon).resolve_fire(
-                "Atlas", ["Ultra"], pilot_gunnery_skill=4, distance_modifier=1  # short bracket
+                _unit(), ["Ultra"], pilot_gunnery_skill=4, distance_modifier=1  # short bracket
             )
         self.assertEqual(result["shots"][0]["damage"], 6)
 
@@ -455,7 +463,7 @@ class ResolveFireTest(unittest.TestCase):
 
     def test_result_contains_expected_keys(self):
         resolver = _resolver(_weapon(name="ML"))
-        result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4, target_name="Locust")
+        result = resolver.resolve_fire(_unit(), ["ML"], pilot_gunnery_skill=4, target_name="Locust")
         for key in (
                 "attacker", "target", "target_movement_modifier", "shots",
                 "hits", "misses", "total_damage", "total_heat", "unresolved_weapons",
@@ -467,20 +475,88 @@ class ResolveFireTest(unittest.TestCase):
     def test_result_is_json_serializable(self):
         resolver = _resolver(_weapon(name="ML", full_name="Medium Laser"))
         with _all_sixes():
-            result = resolver.resolve_fire("Atlas", ["ML"], pilot_gunnery_skill=4, distance_modifier=2)
+            result = resolver.resolve_fire(_unit(), ["ML"], pilot_gunnery_skill=4, distance_modifier=2)
         json.dumps(result)  # must not raise: shots flatten weapon/range_band
         self.assertIsInstance(result["shots"][0]["weapon"], str)
 
     def test_hits_plus_misses_equals_shot_count(self):
         resolver = _resolver(_weapon(name="ML"))
-        result = resolver.resolve_fire("Atlas", ["ML"] * 5, pilot_gunnery_skill=4)
+        result = resolver.resolve_fire(_unit(), ["ML"] * 5, pilot_gunnery_skill=4)
         self.assertEqual(result["hits"] + result["misses"], len(result["shots"]))
 
     def test_no_weapons_yields_empty_result(self):
-        result = _resolver().resolve_fire("Atlas", [], pilot_gunnery_skill=4)
+        result = _resolver().resolve_fire(_unit(), [], pilot_gunnery_skill=4)
         self.assertEqual(result["shots"], [])
         self.assertEqual(result["hits"], 0)
         self.assertEqual(result["total_damage"], 0)
+
+
+class DoubleTapTest(unittest.TestCase):
+    """The per-weapon double-tap flag must thread through to the Ultra-AC rules.
+
+    ``resolve_ultra_ac`` is mocked so these assert the plumbing (which weapon
+    double-taps) rather than the (still-placeholder) Ultra-AC damage math.
+    """
+
+    def _ultra(self, name="UAC5"):
+        # A non-cluster ballistic tagged ULTRA — resolves via the standard path.
+        return _weapon(name=name, cluster=False, num_shots=2,
+                       modifications={"weapon_type": "ULTRA"})
+
+    def _capture(self):
+        return mock.patch.object(fire_calculations.UltraAcCalculations, "resolve_ultra_ac")
+
+    def test_double_tap_flag_reaches_ultra_ac_calculator(self):
+        with _all_sixes(), self._capture() as ultra:  # sixes -> guaranteed hit
+            _resolver(self._ultra()).resolve_fire(
+                _unit(), ["UAC5"], pilot_gunnery_skill=4, double_tap_flags=[True],
+            )
+        ultra.assert_called_once()
+        self.assertIs(ultra.call_args.args[4], True)  # double_tap passed positionally
+
+    def test_single_fire_ultra_passes_double_tap_false(self):
+        with _all_sixes(), self._capture() as ultra:
+            _resolver(self._ultra()).resolve_fire(
+                _unit(), ["UAC5"], pilot_gunnery_skill=4, double_tap_flags=[False],
+            )
+        ultra.assert_called_once()
+        self.assertIs(ultra.call_args.args[4], False)
+
+    def test_missing_flags_default_to_no_double_tap(self):
+        with _all_sixes(), self._capture() as ultra:
+            _resolver(self._ultra()).resolve_fire(
+                _unit(), ["UAC5"], pilot_gunnery_skill=4,  # no double_tap_flags
+            )
+        ultra.assert_called_once()
+        self.assertIs(ultra.call_args.args[4], False)
+
+    def test_non_ultra_weapon_never_calls_ultra_ac(self):
+        with _all_sixes(), self._capture() as ultra:
+            _resolver(_weapon(name="AC5")).resolve_fire(
+                _unit(), ["AC5"], pilot_gunnery_skill=4, double_tap_flags=[True],
+            )
+        ultra.assert_not_called()
+
+    def test_two_identical_ultras_double_tap_independently(self):
+        # The instance-losing name collapse ("UAC5", "UAC5") must not lose the
+        # per-weapon flags: index 0 double-taps, index 1 does not.
+        with _all_sixes(), self._capture() as ultra:
+            result = _resolver(self._ultra()).resolve_fire(
+                _unit(), ["UAC5", "UAC5"], pilot_gunnery_skill=4,
+                double_tap_flags=[True, False],
+            )
+        self.assertEqual(len(result["shots"]), 2)
+        self.assertEqual(ultra.call_count, 2)
+        self.assertEqual([c.args[4] for c in ultra.call_args_list], [True, False])
+
+    def test_two_identical_ultras_both_double_tap(self):
+        with _all_sixes(), self._capture() as ultra:
+            _resolver(self._ultra()).resolve_fire(
+                _unit(), ["UAC5", "UAC5"], pilot_gunnery_skill=4,
+                double_tap_flags=[True, True],
+            )
+        self.assertEqual(ultra.call_count, 2)
+        self.assertEqual([c.args[4] for c in ultra.call_args_list], [True, True])
 
 
 if __name__ == "__main__":
