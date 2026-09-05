@@ -7,3 +7,9 @@ frontend/node_modules/
 frontend/dist/.DS_Store
 .idea/
 .DS_Store
+
+# Local dev environment overrides
+frontend/.env.local
+
+# Docker secrets — contains real credentials, never commit
+.env
