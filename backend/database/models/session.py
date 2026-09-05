@@ -45,6 +45,9 @@ class SessionMech(Base):
     pilot_name: Mapped[str | None] = mapped_column(sa.String(100), nullable=True)
     # Gunnery skill (0 best, 8 worst); the base to-hit number when this unit fires.
     pilot_gunnery_skill: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=4)
+    # Optional accent colour label (e.g. 'amber', 'sky') chosen in the lobby to
+    # visually distinguish duplicate chassis. NULL = no colour (default appearance).
+    accent_color: Mapped[str | None] = mapped_column(sa.String(30), nullable=True)
 
     # Database joins to travel between entities
     session: Mapped["Session"] = relationship(back_populates="mechs")

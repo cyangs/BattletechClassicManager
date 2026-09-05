@@ -50,6 +50,7 @@ class AddMechsRequest(BaseModel):
     team: str = "player"  # "player" (friendly) or "enemy"
     pilot_name: Optional[str] = None            # persists on the unit for the session
     pilot_gunnery_skill: int = Field(4, ge=0, le=8)  # base to-hit number (0 best, 8 worst)
+    accent_color: Optional[str] = None          # palette label ('amber', 'sky', …) or None
 
 class FireWeaponsRequest(BaseModel):
     mech_id: int                            # master Mech id of the firing chassis (fallback label)
@@ -263,7 +264,8 @@ def remove_attachment_from_mech(mech_id: int, sku: str):
 
 
 def _deploy_unit(db, session_id: int, master: "Mech", *, team: str,
-                 pilot_name: Optional[str] = None, pilot_gunnery_skill: int = 4) -> SessionMech:
+                 pilot_name: Optional[str] = None, pilot_gunnery_skill: int = 4,
+                 accent_color: Optional[str] = None) -> SessionMech:
     """Create a SessionMech and snapshot the master mech's loadout into
     session-owned rows. A master mount of count N becomes N individual weapon
     instances so each can be disabled/destroyed on its own during play."""
@@ -273,6 +275,7 @@ def _deploy_unit(db, session_id: int, master: "Mech", *, team: str,
         team=team,
         pilot_name=pilot_name,
         pilot_gunnery_skill=pilot_gunnery_skill,
+        accent_color=accent_color,
     )
     db.add(unit)
 
@@ -520,6 +523,7 @@ def add_mechs_to_session(session_id: int, payload: AddMechsRequest):
                     team=payload.team,
                     pilot_name=payload.pilot_name,
                     pilot_gunnery_skill=payload.pilot_gunnery_skill,
+                    accent_color=payload.accent_color,
                 )
                 inserted_units.append(m_id)
             return {"status": "success", "added_mech_ids": inserted_units}
@@ -591,6 +595,7 @@ def get_all_sessions():
                     "attachments": attachments,
                     "fired_this_turn": unit.id in fired_events,
                     "fire_event_id": fired_events.get(unit.id),
+                    "accent_color": unit.accent_color,
                 })
             data.append({
                 "id": s.id,

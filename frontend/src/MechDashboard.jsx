@@ -89,6 +89,19 @@ export default function MechDashboard() {
   );
 }
 
+// Accent colour palette — shared by the lobby deploy form and the combat card.
+// 'none' = no colour (default grey appearance).
+export const COLOR_PALETTE = [
+  { id: 'none',   border: 'border-gray-800',   bg: '',                 swatch: 'bg-gray-700',    label: 'None'   },
+  { id: 'amber',  border: 'border-amber-500',  bg: 'bg-amber-950/20',  swatch: 'bg-amber-500',   label: 'Amber'  },
+  { id: 'sky',    border: 'border-sky-500',    bg: 'bg-sky-950/20',    swatch: 'bg-sky-500',     label: 'Sky'    },
+  { id: 'green',  border: 'border-green-500',  bg: 'bg-green-950/20',  swatch: 'bg-green-500',   label: 'Green'  },
+  { id: 'violet', border: 'border-violet-500', bg: 'bg-violet-950/20', swatch: 'bg-violet-500',  label: 'Violet' },
+  { id: 'rose',   border: 'border-rose-500',   bg: 'bg-rose-950/20',   swatch: 'bg-rose-500',    label: 'Rose'   },
+  { id: 'orange', border: 'border-orange-500', bg: 'bg-orange-950/20', swatch: 'bg-orange-500',  label: 'Orange' },
+  { id: 'teal',   border: 'border-teal-500',   bg: 'bg-teal-950/20',   swatch: 'bg-teal-500',    label: 'Teal'   },
+];
+
 // Shared by the Sessions tab below.
 function TeamBadge({ team }) {
   const enemy = team === 'enemy';
@@ -144,7 +157,17 @@ function Sessions({ sessions, mechs, reload }) {
   const [addTeam, setAddTeam] = useState('player');
   const [pilotName, setPilotName] = useState('');
   const [pilotGunnery, setPilotGunnery] = useState('4');
+  const [deployColor, setDeployColor] = useState('none');
   const [detailView, setDetailView] = useState('combat'); // 'combat' | 'history'
+  const [expandedUnits, setExpandedUnits] = useState(() => new Set());
+
+  const toggleUnit = (id) =>
+    setExpandedUnits((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
@@ -184,12 +207,14 @@ function Sessions({ sessions, mechs, reload }) {
         team: addTeam,
         pilot_name: pilotName.trim() || null,
         pilot_gunnery_skill: parseInt(pilotGunnery, 10),
+        accent_color: deployColor === 'none' ? null : deployColor,
       }),
     })
       .then(() => {
         setMechToAdd('');
         setPilotName('');
         setPilotGunnery('4');
+        setDeployColor('none');
         reload();
       })
       .catch((err) => alert('Error adding mech: ' + err));
@@ -490,13 +515,29 @@ function Sessions({ sessions, mechs, reload }) {
                       <option value="enemy">Enemy</option>
                     </select>
                   </div>
-                  <button
-                    onClick={addMech}
-                    disabled={!mechToAdd}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Deploy
-                  </button>
+                  <div>
+                    <label className="block text-xs uppercase text-gray-400 mb-1">Colour</label>
+                    <select
+                      value={deployColor}
+                      onChange={(e) => setDeployColor(e.target.value)}
+                      className="px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-amber-500"
+                    >
+                      {COLOR_PALETTE.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="basis-full flex justify-center">
+                    <button
+                      onClick={addMech}
+                      disabled={!mechToAdd}
+                      className="w-full max-w-md px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Deploy
+                    </button>
+                  </div>
                 </div>
 
                 {/* Deployed roster */}
@@ -596,6 +637,13 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
   // this turn's resolved shots; local state covers the immediate fire response.
   const [result, setResult] = useState(firedEvent?.payload ?? null);
   const [firing, setFiring] = useState(false);
+  const [open, setOpen] = useState(true);
+
+  // Accent colour lets players distinguish duplicate chassis at a glance.
+  // Seeded from the value stored on the unit (set at deploy time); can be
+  // changed locally during the session without touching the server.
+  const [accentColorId, setAccentColorId] = useState(unit.accent_color ?? 'none');
+  const accent = COLOR_PALETTE.find((c) => c.id === accentColorId) ?? COLOR_PALETTE[0];
 
   const toggle = (id) =>
     setSelected((prev) => {
@@ -725,24 +773,51 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
       .catch((err) => alert('Error updating attachment: ' + err.message));
 
   return (
-    <div className="border border-gray-800 rounded-lg bg-gray-950 p-4 flex gap-4 w-full">
-      {/* Left: mech + selectable weapons */}
-      <div className="flex-1 min-w-0 max-w-md">
-        <div className="mb-3">
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-2xl text-white font-bold truncate">{unit.name} {unit.model ?? mech?.model ?? ''}</span>
-              <TeamBadge team={unit.team} />
-            </div>
-            <span className="text-sm text-gray-500 font-mono uppercase shrink-0">
+    <div className="border border-gray-800 rounded-lg bg-gray-950 w-full overflow-hidden">
+      {/* Collapsible header — always visible */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b ${
+          accent.id === 'none'
+            ? 'border-gray-800 hover:bg-gray-900/40'
+            : `${accent.bg} ${accent.border}`
+        }`}
+      >
+        <span className={`text-gray-500 text-xs transition-transform duration-150 ${open ? 'rotate-90' : ''}`}>
+          ▶
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="text-lg text-white font-bold truncate">
+              {unit.name} {unit.model ?? mech?.model ?? ''}
+            </span>
+            <span className="text-xs text-gray-500 font-mono uppercase shrink-0">
               {unit.tonnage ?? '—'}t · {unit.tech_base ?? '—'}
             </span>
           </div>
-          <div className="text-sm text-gray-400 font-mono uppercase mt-2">
+          <div className="text-xs text-gray-400 font-mono uppercase mt-0.5 truncate">
             {unit.pilot_name ? `${unit.pilot_name} · ` : ''}Gunnery {unit.pilot_gunnery_skill ?? 4}
           </div>
         </div>
+        <TeamBadge team={unit.team} />
+        {firedThisTurn && (
+          <span className="shrink-0 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-green-950/60 text-green-400 border border-green-900">
+            ✓ Fired
+          </span>
+        )}
+        {result && !firedThisTurn && (
+          <span className="shrink-0 text-[10px] text-gray-500 font-mono">
+            {result.hits}/{result.shots?.length ?? 0} hits · {result.total_damage} dmg
+          </span>
+        )}
+      </button>
 
+      {/* Expandable body */}
+      {open && (
+      <div className="p-4 flex gap-4 w-full">
+      {/* Left: mech + selectable weapons */}
+      <div className="flex-1 min-w-0 max-w-md">
         {instances.length === 0 ? (
           <div className="text-sm text-gray-500">No weapons mounted on this chassis.</div>
         ) : (
@@ -954,6 +1029,8 @@ function SessionMechRow({ sessionId, unit, mech, enemies = [], firedEvent = null
           <div className="text-base text-gray-600 italic">No damage yet.</div>
         )}
       </div>
+      </div>
+      )}
     </div>
   );
 }
