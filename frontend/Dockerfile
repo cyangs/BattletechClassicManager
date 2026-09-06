@@ -7,6 +7,10 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
+# Expose docker-compose file's public url to frontend here
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copy source and build
 COPY . .
 RUN npm run build
