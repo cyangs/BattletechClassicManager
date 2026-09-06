@@ -9,6 +9,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db_data:/var/lib/postgresql/data
+      # Seed dump — Postgres auto-runs any .sql here, but ONLY when db_data is
+      # empty (first boot on a fresh machine). Read-only so the DB can't alter it.
+      - ./db_seed:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -20,6 +23,12 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SEED_DIR: /seed
+    volumes:
+      # Same host directory the db reads its seed from. The Backup Database
+      # feature writes /seed/seed.sql here, so it lands in ./db_seed on the host
+      # and is picked up by the db container on the next fresh boot.
+      - ./db_seed:/seed
     depends_on:
       db:
         condition: service_healthy

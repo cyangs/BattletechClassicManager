@@ -4,8 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+import os
+import subprocess
+from urllib.parse import urlparse
+
 # Import your shared configurations and models
-from config import SessionLocal
+from config import SessionLocal, DATABASE_URL
 #  To this absolute package layout path:
 from database.models.mech import Mech
 from database.models.weapon import MechWeapon, Weapon
@@ -885,6 +889,86 @@ def get_all_mechs():
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Database retrieval failure: {str(e)}")
+
+
+# --- ADMIN: DATABASE BACKUP -------------------------------------------------
+# Where the seed dump is written. This path is bind-mounted (see
+# docker-compose.yml) to the host ./db_seed directory, which is ALSO mounted
+# into the Postgres container's /docker-entrypoint-initdb.d. So a dump written
+# here is automatically loaded the next time Postgres starts on a fresh volume
+# (e.g. `docker compose up` on another machine), seeding the database.
+SEED_DIR = os.getenv("SEED_DIR", "/seed")
+SEED_FILE = os.path.join(SEED_DIR, "seed.sql")
+
+
+def _parse_database_url(url: str) -> dict:
+    """Break a SQLAlchemy Postgres URL into pg_dump connection parameters.
+
+    Accepts the ``postgresql+psycopg://user:pass@host:port/dbname`` form used
+    by :data:`config.DATABASE_URL` and returns a dict of the pieces plus a
+    ``PGPASSWORD`` value for the subprocess environment.
+    """
+    parsed = urlparse(url)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": str(parsed.port or 5432),
+        "user": parsed.username or "postgres",
+        "password": parsed.password or "",
+        "dbname": (parsed.path or "/postgres").lstrip("/") or "postgres",
+    }
+
+
+@app.post("/api/admin/backup-database")
+def backup_database():
+    """Dump the entire database to the seed file for portable re-seeding.
+
+    Runs ``pg_dump`` with ``--clean --if-exists`` so the resulting SQL can be
+    replayed on a fresh database (it drops then recreates every object). The
+    file lands in the shared seed directory that Postgres auto-loads on first
+    boot, so committing it to the repo lets another machine come up pre-seeded.
+    """
+    conn = _parse_database_url(DATABASE_URL)
+
+    os.makedirs(SEED_DIR, exist_ok=True)
+
+    cmd = [
+        "pg_dump",
+        "--host", conn["host"],
+        "--port", conn["port"],
+        "--username", conn["user"],
+        "--dbname", conn["dbname"],
+        "--clean",          # emit DROP statements
+        "--if-exists",      # ...guarded so a fresh DB doesn't error on the DROPs
+        "--no-owner",       # portable across differing role names
+        "--no-privileges",
+        "--file", SEED_FILE,
+    ]
+    env = {**os.environ, "PGPASSWORD": conn["password"]}
+
+    try:
+        result = subprocess.run(
+            cmd, env=env, capture_output=True, text=True, timeout=120,
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=500,
+            detail="pg_dump not found on the server. Ensure postgresql-client is installed.",
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Database backup timed out.")
+
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"pg_dump failed: {result.stderr.strip() or 'unknown error'}",
+        )
+
+    size_bytes = os.path.getsize(SEED_FILE) if os.path.exists(SEED_FILE) else 0
+    return {
+        "status": "success",
+        "file": SEED_FILE,
+        "size_bytes": size_bytes,
+    }
 
 
 # --- LAUNCHER ---
