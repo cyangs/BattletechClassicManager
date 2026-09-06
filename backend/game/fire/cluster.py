@@ -27,6 +27,7 @@ class ClusterShotResolver(BaseShotResolver):
         if "ARTEMISIV" in self.attachments:
             cluster_hit_roll += 2
 
+        ## TODO - did not account for artemis V having -1 to hit yet
         if "ARTEMISV" in self.attachments:
             cluster_hit_roll += 3
 

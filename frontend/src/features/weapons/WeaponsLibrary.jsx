@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 
-import { API } from '../api';
-import {AmmoBadge, LabeledInput, TechBaseBadge} from './shared';
+import { API } from '../../api';
+import { AmmoBadge, TechBaseBadge } from '../../components/badges';
+import { LabeledInput } from '../../components/LabeledInput';
 
 // Format a to-hit modifier for display: "+2", "-3", 0, or "—" when unset.
 function fmtMod(v) {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { API } from '../api';
-import { AmmoBadge, LabeledInput } from './shared';
+import { API } from '../../api';
+import { AmmoBadge } from '../../components/badges';
+import { LabeledInput } from '../../components/LabeledInput';
 
 // =====================================================================
 // TAB 1: MECHS LIBRARY — roster sidebar + overview / weapons / editor

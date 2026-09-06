@@ -1,17 +1,6 @@
-// Small presentational primitives shared by the Mechs and Weapons libraries.
+// Small presentational badge primitives shared across features.
 
-export function LabeledInput({ label, className = '', ...props }) {
-  return (
-    <div>
-      <label className="block text-xs uppercase text-gray-400 mb-1">{label}</label>
-      <input
-        {...props}
-        className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500 ${className}`}
-      />
-    </div>
-  );
-}
-
+// Uses-ammo indicator for weapons.
 export function AmmoBadge({ use }) {
   return (
     <span
@@ -26,9 +15,9 @@ export function AmmoBadge({ use }) {
   );
 }
 
+// Inner Sphere vs Clan tech-base indicator.
 export function TechBaseBadge({ techBase }) {
   const isClan = techBase === 'CLAN';
-
   return (
     <span
       className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
@@ -38,6 +27,22 @@ export function TechBaseBadge({ techBase }) {
       }`}
     >
       {isClan ? 'Clan' : 'IS'}
+    </span>
+  );
+}
+
+// Player vs Enemy side indicator for a session unit.
+export function TeamBadge({ team }) {
+  const enemy = team === 'enemy';
+  return (
+    <span
+      className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+        enemy
+          ? 'bg-red-950/60 text-red-400 border border-red-900'
+          : 'bg-sky-950/60 text-sky-400 border border-sky-900'
+      }`}
+    >
+      {enemy ? 'Enemy' : 'Player'}
     </span>
   );
 }

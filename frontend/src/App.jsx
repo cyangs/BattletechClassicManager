@@ -1,5 +1,5 @@
 import React from 'react';
-import MechDashboard from './MechDashboard';
+import MechDashboard from './features/dashboard/MechDashboard';
 
 function App() {
   return (
