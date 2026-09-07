@@ -28,6 +28,10 @@ from game.fire.base import (
 from game.fire.standard import StandardShotResolver
 from game.fire.cluster import ClusterShotResolver
 from game.fire.ultra import UltraShotResolver
+from game.fire.streak import StreakShotResolver
+from game.fire.lbx import LbxShotResolver
+from game.fire.mrm import MrmShotResolver
+from game.fire.rac import RacShotResolver
 
 __all__ = [
     # Models & enums
@@ -43,6 +47,10 @@ __all__ = [
     "StandardShotResolver",
     "ClusterShotResolver",
     "UltraShotResolver",
+    "StreakShotResolver",
+    "LbxShotResolver",
+    "MrmShotResolver",
+    "RacShotResolver",
     # Dice helpers
     "roll_1d6",
     "roll_2d6",

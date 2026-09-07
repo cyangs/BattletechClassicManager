@@ -133,6 +133,8 @@ class AttachmentDestroyedRequest(BaseModel):
 class AttachmentSaveRequest(BaseModel):
     sku: str = Field(..., min_length=1, max_length=50)          # primary key, e.g. "ARTEMISIV"
     display_name: str = Field(..., min_length=1, max_length=100)
+    attachment_type: str = "mech"                               # "mech" or "weapon"
+    tech_base: Optional[str] = None                             # "clan" | "is" | "mixed" (or None)
     to_hit_modifier: Optional[int] = None
     cluster_modifier: Optional[int] = None
     tonnage: Optional[float] = None
@@ -756,7 +758,7 @@ def get_all_attachments(attachment_type: Optional[str] = None):
             "to_hit_modifier": a.to_hit_modifier,
             "cluster_modifier": a.cluster_modifier,
             "tonnage": a.tonnage,
-            "tech_base": a.tech_base,
+            "tech_base": a.tech_base.value if a.tech_base else None,
             "attachment_type": a.attachment_type.value if a.attachment_type else None,
             "description": a.description,
         } for a in rows]
@@ -765,6 +767,27 @@ def get_all_attachments(attachment_type: Optional[str] = None):
 @app.post("/api/weapon-attachments/save")
 def save_or_update_attachment(payload: AttachmentSaveRequest):
     """Create or update an attachment (upsert on its SKU)."""
+    # Validate the attachment type up front — "mech" attachments fit a chassis,
+    # "weapon" attachments fit a weapon. An invalid value is a 400, not a 500.
+    try:
+        type_enum = AttachmentType(payload.attachment_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid attachment_type. Use 'mech' or 'weapon'.",
+        )
+
+    # Tech base is optional; validate only when provided.
+    tech_enum = None
+    if payload.tech_base:
+        try:
+            tech_enum = TechBaseEnum(payload.tech_base)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid tech_base. Use 'clan', 'is', or 'mixed'.",
+            )
+
     with SessionLocal() as session:
         with session.begin():
             attachment = session.get(Attachments, payload.sku)
@@ -774,6 +797,8 @@ def save_or_update_attachment(payload: AttachmentSaveRequest):
                 session.add(attachment)
 
             attachment.display_name = payload.display_name
+            attachment.attachment_type = type_enum
+            attachment.tech_base = tech_enum
             attachment.to_hit_modifier = payload.to_hit_modifier
             attachment.cluster_modifier = payload.cluster_modifier
             attachment.tonnage = payload.tonnage

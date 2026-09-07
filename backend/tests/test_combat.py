@@ -39,6 +39,9 @@ from game.fire import (
     roll_2d6,
 )
 from game.fire.streak import StreakShotResolver
+from game.fire.lbx import LbxShotResolver
+from game.fire.mrm import MrmShotResolver
+from game.fire.rac import RacShotResolver
 from game.combat import CombatResolver
 from game.tables import (
     FRONT_REAR_LOCATION_TABLE,
@@ -759,6 +762,38 @@ class ResolverRoutingTest(unittest.TestCase):
         ) as patched:
             with _all_sixes():
                 self._fire(streak)
+        patched.assert_called_once()
+
+    def test_lbx_uses_lbx_resolver_not_generic_cluster(self):
+        # LB-X is a cluster weapon, but the LBX branch must win over the generic
+        # cluster branch so the -1 modifier is applied.
+        lbx = _weapon(name="LB10X", cluster=True, num_shots=10, cluster_damage=1,
+                      damage=10, modifications={"weapon_type": "LBX"})
+        with mock.patch(
+            "game.combat.LbxShotResolver", wraps=LbxShotResolver
+        ) as patched:
+            with _all_sixes():
+                self._fire(lbx)
+        patched.assert_called_once()
+
+    def test_mrm_uses_mrm_resolver_not_generic_cluster(self):
+        mrm = _weapon(name="MRM20", cluster=True, num_shots=20, cluster_damage=1,
+                      damage=20, modifications={"weapon_type": "MRM"})
+        with mock.patch(
+            "game.combat.MrmShotResolver", wraps=MrmShotResolver
+        ) as patched:
+            with _all_sixes():
+                self._fire(mrm)
+        patched.assert_called_once()
+
+    def test_rac_uses_rac_resolver_not_generic_cluster(self):
+        rac = _weapon(name="RAC5", cluster=True, num_shots=2, cluster_damage=5,
+                      damage=5, modifications={"weapon_type": "RAC"})
+        with mock.patch(
+            "game.combat.RacShotResolver", wraps=RacShotResolver
+        ) as patched:
+            with _all_sixes():
+                self._fire(rac)
         patched.assert_called_once()
 
 

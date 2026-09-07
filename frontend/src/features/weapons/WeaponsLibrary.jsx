@@ -575,6 +575,8 @@ function AttachmentEditor({ attachment, onClose, onSaved }) {
     const payload = {
       sku: fd.get('sku'),
       display_name: fd.get('display_name'),
+      attachment_type: fd.get('attachment_type'),
+      tech_base: fd.get('tech_base') || null,
       to_hit_modifier: num(fd.get('to_hit_modifier')),
       cluster_modifier: num(fd.get('cluster_modifier')),
       tonnage: flt(fd.get('tonnage')),
@@ -626,6 +628,32 @@ function AttachmentEditor({ attachment, onClose, onSaved }) {
             readOnly={!!attachment}
             className={`font-mono text-xs ${attachment ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase text-gray-400 mb-1">Attachment Type</label>
+              <select
+                name="attachment_type"
+                defaultValue={attachment?.attachment_type || 'mech'}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="mech">Mech (chassis)</option>
+                <option value="weapon">Weapon</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase text-gray-400 mb-1">Tech Base</label>
+              <select
+                name="tech_base"
+                defaultValue={attachment?.tech_base || ''}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="">—</option>
+                <option value="clan">Clan</option>
+                <option value="is">Inner Sphere</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <LabeledInput name="to_hit_modifier" label="To-Hit Modifier" type="number" defaultValue={attachment?.to_hit_modifier ?? ''} />
             <LabeledInput name="cluster_modifier" label="Cluster Modifier" type="number" defaultValue={attachment?.cluster_modifier ?? ''} />

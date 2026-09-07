@@ -77,6 +77,11 @@ class WeaponShot:
     cluster_hits_landed: Optional[int] = None     # total damage points that landed (table result)
     cluster_hits: Optional[list[ClusterHit]] = None
 
+    # Rapid-fire ballistics (Rotary/Ultra ACs) can jam. When True the weapon
+    # jammed this action: no damage was dealt and it needs an unjam before it
+    # can fire again.
+    jammed: bool = False
+
 
 def serialize_shot(shot: WeaponShot) -> dict:
     """JSON-safe view of a shot for the API response.
@@ -95,6 +100,7 @@ def serialize_shot(shot: WeaponShot) -> dict:
         "hit_location": shot.hit_location,
         "damage": shot.damage,
         "critical_hit": shot.critical_hit,
+        "jammed": shot.jammed,
         "all_rolls": asdict(shot.all_rolls) if shot.all_rolls else None,
         # Cluster breakdown (None for normal weapons).
         "cluster_roll": shot.cluster_roll,

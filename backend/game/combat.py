@@ -20,12 +20,15 @@ from game.fire import (
     StandardShotResolver,
     ClusterShotResolver,
     UltraShotResolver,
+    StreakShotResolver,
+    LbxShotResolver,
+    MrmShotResolver,
+    RacShotResolver,
     serialize_shot,
     roll_1d6,
     roll_2d6,
 )
 from database.models.session import SessionMech
-from game.fire.streak import StreakShotResolver
 
 
 class CombatResolver:
@@ -169,6 +172,37 @@ class CombatResolver:
                 )
             elif weapon_type == "STREAK":
                 resolver = StreakShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            elif weapon_type == "LBX":
+                # LB-X cluster mode: scatter like a cluster weapon, with its
+                # own -1 to-hit applied inside the resolver. Checked before the
+                # generic cluster branch since LB-X is also a cluster weapon.
+                resolver = LbxShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            elif weapon_type == "MRM":
+                # MRM: cluster scatter with a +1 to-hit penalty (applied inside
+                # the resolver). Before the generic cluster branch.
+                resolver = MrmShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            elif weapon_type == "RAC":
+                # Rotary AC: variable rounds via the cluster table, with a jam
+                # on a natural to-hit 2. Before the generic cluster branch.
+                resolver = RacShotResolver(
                     weapon=db_weapon,
                     target_number=target_number,
                     target_facing=target_facing,
