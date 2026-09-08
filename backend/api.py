@@ -1,11 +1,13 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 import os
+import uuid
 import subprocess
+from typing import Optional
 from urllib.parse import urlparse
 
 # Import your shared configurations and models
@@ -25,6 +27,7 @@ from database.models.session import (
     SessionWeaponState,
     SessionMechWeapon,
     SessionMechAttachment,
+    SessionPlayer,
 )
 from database.dao.weapon_repository import WeaponRepository
 from game.combat import CombatResolver
@@ -44,10 +47,72 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
+# ===========================================================================
+# PLAYER IDENTITY / AUTH
+# ---------------------------------------------------------------------------
+# Multiplayer auth is intentionally lightweight for now: a client presents an
+# opaque per-session ``player_token`` (kept in the browser) via the
+# ``X-Player-Token`` header, and the server resolves it to a SessionPlayer.
+#
+# IMPORTANT: everything downstream depends on the resolved SessionPlayer, never
+# on the token itself. To add real user accounts later, only the *inside* of
+# ``resolve_player`` changes (e.g. also accept a JWT and map it to a
+# SessionPlayer via its user_id) — endpoints and ownership checks stay put.
+# ===========================================================================
+
+def _new_token() -> str:
+    """Generate an opaque bearer token for a session player."""
+    return uuid.uuid4().hex
+
+
+def _new_join_code() -> str:
+    """Generate a shareable session join code."""
+    return uuid.uuid4().hex
+
+
+def resolve_player(db, session_id: int, player_token: Optional[str]) -> Optional[SessionPlayer]:
+    """Resolve the acting player for a session from the presented credential.
+
+    Returns the matching :class:`SessionPlayer`, or ``None`` when no/!valid
+    credential is presented. This is the single funnel point for auth — when
+    accounts are introduced, extend this to also accept a login token and map
+    it to the player's row; callers do not change.
+    """
+    if not player_token:
+        return None
+    return db.execute(
+        select(SessionPlayer).where(
+            SessionPlayer.session_id == session_id,
+            SessionPlayer.player_token == player_token,
+        )
+    ).scalar_one_or_none()
+
+
+def require_player(db, session_id: int, player_token: Optional[str]) -> SessionPlayer:
+    """Like :func:`resolve_player` but 401s when the caller isn't a member."""
+    player = resolve_player(db, session_id, player_token)
+    if player is None:
+        raise HTTPException(status_code=401, detail="Not a member of this session")
+    return player
+
+
 # Request validation schemas
 class CreateSessionRequest(BaseModel):
     name: str
     enemy_mech_ids: List[int] = []  # chassis to deploy as the opposing force
+    # Display name of the session creator, who becomes the lobby admin.
+    # Optional for backward compatibility; falls back to "Admin" when omitted.
+    admin_name: Optional[str] = None
+
+
+class JoinSessionRequest(BaseModel):
+    join_code: str = Field(..., min_length=1, max_length=36)
+    display_name: str = Field(..., min_length=1, max_length=100)
+
+
+class ChooseSideRequest(BaseModel):
+    side: Optional[str] = Field(None, max_length=30)  # None clears the choice
+
 
 class AddMechsRequest(BaseModel):
     mech_ids: List[int]
@@ -304,9 +369,20 @@ def _deploy_unit(db, session_id: int, master: "Mech", *, team: str,
 def create_session(payload: CreateSessionRequest):
     with SessionLocal() as session:
         with session.begin():
-            new_session = Session(name=payload.name)
+            new_session = Session(name=payload.name, join_code=_new_join_code())
             session.add(new_session)
             session.flush() # Populate the ID
+
+            # Register the creator as the lobby admin player.
+            admin_token = _new_token()
+            admin = SessionPlayer(
+                session_id=new_session.id,
+                display_name=(payload.admin_name or "Admin"),
+                player_token=admin_token,
+                is_admin=True,
+            )
+            session.add(admin)
+            session.flush()  # populate admin.id for the response
 
             # Deploy any chosen enemy chassis straight into the new lobby.
             for m_id in payload.enemy_mech_ids:
@@ -321,6 +397,84 @@ def create_session(payload: CreateSessionRequest):
                 "status": new_session.status,
                 "current_turn": new_session.current_turn,
                 "created_on": new_session.created_on,
+                "join_code": new_session.join_code,
+                # The creator's credential — the client stores this to act as admin.
+                "player_token": admin_token,
+                "player_id": admin.id,
+            }
+
+
+@app.post("/api/sessions/join")
+def join_session(payload: JoinSessionRequest):
+    """Join an existing session by its shareable code.
+
+    Returns a fresh ``player_token`` the client stores and presents on every
+    subsequent request (via the ``X-Player-Token`` header) to act as this
+    player. Joining is only allowed while the session is still in its lobby.
+    """
+    with SessionLocal() as session:
+        with session.begin():
+            game = session.execute(
+                select(Session).where(Session.join_code == payload.join_code)
+            ).scalar_one_or_none()
+            if not game:
+                raise HTTPException(status_code=404, detail="No session found for that join code")
+            if game.status != "active":
+                raise HTTPException(status_code=400, detail="Session has already started; cannot join")
+
+            token = _new_token()
+            player = SessionPlayer(
+                session_id=game.id,
+                display_name=payload.display_name,
+                player_token=token,
+                is_admin=False,
+            )
+            session.add(player)
+            session.flush()
+            return {
+                "session_id": game.id,
+                "name": game.name,
+                "player_token": token,
+                "player_id": player.id,
+                "is_admin": False,
+            }
+
+
+@app.get("/api/sessions/{session_id}/players")
+def list_session_players(session_id: int):
+    """List everyone who has joined a session and the side each has chosen."""
+    with SessionLocal() as session:
+        game = session.execute(
+            select(Session)
+            .options(selectinload(Session.players))
+            .where(Session.id == session_id)
+        ).scalar_one_or_none()
+        if not game:
+            raise HTTPException(status_code=404, detail="Game session not found")
+        return [{
+            "id": p.id,
+            "display_name": p.display_name,
+            "side": p.side,
+            "is_admin": p.is_admin,
+        } for p in game.players]
+
+
+@app.post("/api/sessions/{session_id}/choose-side")
+def choose_side(session_id: int, payload: ChooseSideRequest,
+                x_player_token: Optional[str] = Header(default=None)):
+    """Let the calling player pick (or clear) the side they control.
+
+    The player is identified by their ``X-Player-Token`` header — a player can
+    only set their own side, which is what enforces per-player ownership later.
+    """
+    with SessionLocal() as session:
+        with session.begin():
+            player = require_player(session, session_id, x_player_token)
+            player.side = payload.side
+            return {
+                "status": "success",
+                "player_id": player.id,
+                "side": player.side,
             }
 
 
@@ -546,6 +700,7 @@ def get_all_sessions():
                 selectinload(Session.mechs).selectinload(SessionMech.weapons).selectinload(SessionMechWeapon.weapon),
                 selectinload(Session.mechs).selectinload(SessionMech.attachments).selectinload(SessionMechAttachment.attachment),
                 selectinload(Session.events),
+                selectinload(Session.players),
             )
             .order_by(Session.status.desc())
         )
@@ -609,6 +764,13 @@ def get_all_sessions():
                 "status": s.status,
                 "current_turn": s.current_turn,
                 "created_on": s.created_on,
+                "join_code": s.join_code,
+                "players": [{
+                    "id": p.id,
+                    "display_name": p.display_name,
+                    "side": p.side,
+                    "is_admin": p.is_admin,
+                } for p in s.players],
                 "mechs": units,
                 "events": [{
                     "id": e.id,

@@ -13,5 +13,6 @@ from .session import (
     SessionWeaponState,
     SessionMechWeapon,
     SessionMechAttachment,
+    SessionPlayer,
 )
 from .links import weapon_attachment_link, weapon_ammo_link, mech_attachment_link

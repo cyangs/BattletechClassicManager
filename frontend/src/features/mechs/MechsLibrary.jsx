@@ -111,6 +111,16 @@ export default function MechsLibrary({ mechs, weapons, reload }) {
               />
             </Section>
           </div>
+
+          <div className="mt-6 flex justify-center">
+            <button
+              type="submit"
+              form="mech-editor-form"
+              className="w-full max-w-md py-2 bg-amber-600 hover:bg-amber-700 font-bold rounded text-white cursor-pointer transition-colors shadow-md"
+            >
+              {selectedMech ? '💾 Overwrite Active Blueprint' : '🛠️ Compile New Unit Row'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -422,7 +432,7 @@ function MechEditor({ mech, onSaved, onNewMode }) {
       </div>
 
       {/* keyed on mech id so defaultValues reset when switching mechs */}
-      <form key={mech?.id ?? 'new'} onSubmit={handleSubmit}>
+      <form id="mech-editor-form" key={mech?.id ?? 'new'} onSubmit={handleSubmit}>
         <div className="space-y-4 text-sm">
           <LabeledInput name="designation" label="Chassis Designation" defaultValue={mech?.name || ''} required />
           <LabeledInput name="model" label="Variant Model" defaultValue={mech?.model || 'Prime'} />
@@ -457,13 +467,6 @@ function MechEditor({ mech, onSaved, onNewMode }) {
             defaultValue={mech?.uuid || ''}
             className="font-mono text-xs"
           />
-
-          <button
-            type="submit"
-            className="w-full py-2 bg-amber-600 hover:bg-amber-700 font-bold rounded text-white mt-4 cursor-pointer transition-colors shadow-md"
-          >
-            {mech ? '💾 Overwrite Active Blueprint' : '🛠️ Compile New Unit Row'}
-          </button>
         </div>
       </form>
     </div>

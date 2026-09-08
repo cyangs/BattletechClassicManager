@@ -21,6 +21,8 @@ class Session(Base):
     status: Mapped[str] = mapped_column(sa.String(20), default="active")  # active (lobby), in_progress, completed
     current_turn: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)  # 0 = not started
     created_on: Mapped[DateTime] = mapped_column(sa.DateTime, nullable=False, default=datetime.now(timezone.utc))
+    # Shareable code players use to join this session. UUID hex string, unique.
+    join_code: Mapped[str | None] = mapped_column(sa.String(36), nullable=True, unique=True)
 
     # Relationship to get all mechs in this specific game session
     mechs: Mapped[List["SessionMech"]] = relationship(
@@ -29,6 +31,11 @@ class Session(Base):
     # Chronological log of things that have happened in the session (e.g. fires).
     events: Mapped[List["SessionEvent"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="SessionEvent.id"
+    )
+    # People who have joined this session (the session creator plus anyone who
+    # joined via the code). See :class:`SessionPlayer`.
+    players: Mapped[List["SessionPlayer"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan", order_by="SessionPlayer.id"
     )
 
 
@@ -160,3 +167,39 @@ class SessionMechAttachment(Base):
 
     session_mech: Mapped["SessionMech"] = relationship(back_populates="attachments")
     attachment: Mapped["Attachments"] = relationship()
+
+
+class SessionPlayer(Base):
+    """A person participating in one game session.
+
+    This is the durable "who is acting" concept the rest of the multiplayer
+    system keys off — unit ownership, side selection, and turn authorization
+    all reference ``SessionPlayer.id``, never the raw credential.
+
+    Authentication today is lightweight: a client presents its
+    ``player_token`` (an opaque per-session bearer credential kept in the
+    browser) and the server resolves it to this row. ``user_id`` is reserved
+    for a future accounts system — when real logins are added, a
+    ``SessionPlayer`` will simply be linked to a ``User`` by populating this
+    column, with no change to any downstream ownership/turn logic.
+    """
+    __tablename__ = "session_players"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    # Display name shown in the lobby (e.g. "Alice").
+    display_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
+    # Opaque per-session bearer credential the browser stores and presents on
+    # every request. Unique so it can be looked up directly.
+    player_token: Mapped[str] = mapped_column(sa.String(64), nullable=False, unique=True)
+    # The side/team this player controls (e.g. "player", "enemy", or a colour).
+    # NULL until they pick a side in the lobby.
+    side: Mapped[str | None] = mapped_column(sa.String(30), nullable=True)
+    # The session creator, who has lobby-admin powers (start/end/kick).
+    is_admin: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    # Reserved for the future accounts system; NULL for anonymous players.
+    user_id: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+
+    session: Mapped["Session"] = relationship(back_populates="players")

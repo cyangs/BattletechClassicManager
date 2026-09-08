@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { API } from '../../api';
 import { COLOR_PALETTE } from '../../lib/palette';
 import { TeamBadge } from '../../components/badges';
+import { useAdminMode } from '../../lib/useAdminMode';
 import { SessionMechRow } from './SessionMechRow';
 import { SessionHistory } from './SessionHistory';
 
@@ -19,6 +20,10 @@ export default function Sessions({ sessions, mechs, reload }) {
   const [deployColor, setDeployColor] = useState('none');
   const [detailView, setDetailView] = useState('combat'); // 'combat' | 'history'
   const [expandedUnits, setExpandedUnits] = useState(() => new Set());
+  const [admin] = useAdminMode();
+  // Join-by-code state (players without admin mode).
+  const [joinCode, setJoinCode] = useState('');
+  const [joinName, setJoinName] = useState('');
 
   const toggleUnit = (id) =>
     setExpandedUnits((prev) => {
@@ -36,14 +41,57 @@ export default function Sessions({ sessions, mechs, reload }) {
     fetch(`${API}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim() }),
+      body: JSON.stringify({ name: newName.trim(), admin_name: 'Admin' }),
     })
       .then((r) => r.json())
       .then((created) => {
         setNewName('');
+        // Store the admin's per-session token so this client can act as admin.
+        if (created.player_token) {
+          localStorage.setItem(`btm.token.${created.id}`, created.player_token);
+        }
         reload().then(() => setSelectedId(created.id));
       })
       .catch((err) => alert('Error creating session: ' + err));
+  };
+
+  // The side the current player has chosen in the selected session (derived
+  // from their stored token + the session's players list).
+  const myToken = selected ? localStorage.getItem(`btm.token.${selected.id}`) : null;
+
+  const chooseSide = (side) => {
+    if (!selected || !myToken) return;
+    fetch(`${API}/api/sessions/${selected.id}/choose-side`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Player-Token': myToken },
+      body: JSON.stringify({ side }),
+    })
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || 'Choose side failed');
+        reload();
+      })
+      .catch((err) => alert('Error choosing side: ' + err.message));
+  };
+
+  // Players (non-admin) join an existing session by its shared code.
+  const joinSession = (e) => {
+    e.preventDefault();
+    if (!joinCode.trim() || !joinName.trim()) return;
+    fetch(`${API}/api/sessions/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ join_code: joinCode.trim(), display_name: joinName.trim() }),
+    })
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || 'Join failed');
+        // Persist this player's per-session token for later actions.
+        localStorage.setItem(`btm.token.${body.session_id}`, body.player_token);
+        setJoinCode('');
+        reload().then(() => setSelectedId(body.session_id));
+      })
+      .catch((err) => alert('Error joining session: ' + err.message));
   };
 
   const deleteSession = (id) => {
@@ -124,46 +172,82 @@ export default function Sessions({ sessions, mechs, reload }) {
       <div className="w-80 border-r border-gray-800 bg-gray-950 flex flex-col shrink-0">
         <div className="p-4 border-b border-gray-800">
           <h1 className="text-lg font-bold text-amber-500 mb-3">Game Sessions</h1>
-          <form onSubmit={createSession} className="space-y-2">
-            <input
-              type="text"
-              placeholder="New session name..."
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:outline-none focus:border-amber-500"
-            />
-            <button
-              type="submit"
-              disabled={!newName.trim()}
-              className="w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 rounded text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              + Create Session
-            </button>
-          </form>
 
-          {/* Add enemy chassis to the currently selected session. */}
-          <div className="mt-3">
-            <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
-              Add Enemy Forces to Current Session
-            </label>
-            <select
-              value=""
-              disabled={!selected || completed}
-              onChange={(e) => {
-                if (e.target.value) addEnemy(e.target.value);
-              }}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <option value="">
-                {selected ? '+ Add enemy chassis…' : 'Select a session first…'}
-              </option>
-              {mechs.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} {m.model} - ({m.tonnage}t)
-                </option>
-              ))}
-            </select>
-          </div>
+          {admin ? (
+            <>
+              {/* Admin: create a new session. */}
+              <form onSubmit={createSession} className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="New session name..."
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!newName.trim()}
+                  className="w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 rounded text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  + Create Session
+                </button>
+              </form>
+
+              {/* Add enemy chassis to the currently selected session. */}
+              <div className="mt-3">
+                <label className="block text-[10px] uppercase tracking-wider text-red-400/80 mb-1">
+                  Add Enemy Forces to Current Session
+                </label>
+                <select
+                  value=""
+                  disabled={!selected || completed}
+                  onChange={(e) => {
+                    if (e.target.value) addEnemy(e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {selected ? '+ Add enemy chassis…' : 'Select a session first…'}
+                  </option>
+                  {mechs.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.model} - ({m.tonnage}t)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Player: join an existing session by code. */}
+              <form onSubmit={joinSession} className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Your name..."
+                  value={joinName}
+                  onChange={(e) => setJoinName(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:outline-none focus:border-amber-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Join code..."
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white font-mono focus:outline-none focus:border-sky-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!joinCode.trim() || !joinName.trim()}
+                  className="w-full px-3 py-2 bg-sky-600 hover:bg-sky-700 rounded text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  → Join Session
+                </button>
+              </form>
+              <p className="mt-2 text-[10px] text-gray-500">
+                Enable Admin User in the ⚙️ menu to create sessions.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -221,6 +305,31 @@ export default function Sessions({ sessions, mechs, reload }) {
                   Status: {selected.status}
                   {inProgress && ` · Turn ${selected.current_turn}`} · {selected.mechs.length} unit(s)
                 </p>
+                {/* Join code — admins share this so players can join. */}
+                {admin && selected.join_code && (
+                  <p className="text-gray-500 text-xs mt-1 font-mono">
+                    Join code: <span className="text-amber-400 select-all">{selected.join_code}</span>
+                  </p>
+                )}
+                {/* Player side picker — for a joined (non-admin) player. */}
+                {!admin && myToken && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">Your side:</span>
+                    {['player', 'enemy'].map((side) => (
+                      <button
+                        key={side}
+                        onClick={() => chooseSide(side)}
+                        className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+                          side === 'enemy'
+                            ? 'border-red-900 text-red-400 hover:bg-red-950/40'
+                            : 'border-sky-900 text-sky-400 hover:bg-sky-950/40'
+                        }`}
+                      >
+                        {side}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 {completed ? (
