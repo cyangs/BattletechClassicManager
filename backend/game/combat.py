@@ -84,6 +84,9 @@ class CombatResolver:
         partial_cover: whether the target is partially obscured.
         """
         shots: List[WeaponShot] = []
+        # Per-shot GATOR modifier breakdowns, index-aligned with ``shots`` so
+        # the history detailed-log can show how each target number was reached.
+        breakdowns: List[dict] = []
         unresolved: List[str] = []
         total_damage = 0
         total_heat = 0
@@ -131,6 +134,20 @@ class CombatResolver:
             """ Beyond long range -> no valid target number (auto miss)."""
             band, range_modifier = self._range_bracket(distance, db_weapon)
             target_number = None if band is None else base_modifiers + range_modifier
+
+            # Capture the GATOR components for this shot (before per-weapon
+            # adjustments like TC / pulse). The detailed history log shows these;
+            # any remaining difference vs the final target number is folded into
+            # an "other adjustments" line computed on the frontend.
+            breakdown = {
+                "gunnery": int(pilot_gunnery_skill or 0),
+                "attacker_movement": int(self_movement_modifier or 0),
+                "target_movement": int(target_movement_modifier or 0),
+                "additional": int(additional_modifier or 0),
+                "range": int(range_modifier),
+                "range_band": band.name if band else None,
+                "base_target_number": target_number,  # pre TC/pulse (None if OOR)
+            }
 
             # Heat accrues whether the shot lands (or is in range).
             total_heat += int(db_weapon.heat or 0)
@@ -242,13 +259,19 @@ class CombatResolver:
             # FireCalculations zeroes damage on a miss / out-of-range.
             total_damage += shot.damage
             shots.append(shot)
+            breakdowns.append(breakdown)
 
         hits = sum(1 for s in shots if s.hit)
+        serialized_shots = []
+        for s, bd in zip(shots, breakdowns):
+            payload = serialize_shot(s)
+            payload["modifier_breakdown"] = bd
+            serialized_shots.append(payload)
         return {
             "attacker": unit.master_mech.name,
             "target": target_name,
             "target_movement_modifier": int(target_movement_modifier or 0),
-            "shots": [serialize_shot(s) for s in shots],
+            "shots": serialized_shots,
             "hits": hits,
             "misses": len(shots) - hits,
             "total_damage": total_damage,
