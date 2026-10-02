@@ -64,11 +64,25 @@ function shotLines(payload) {
         `range ${fmtMod(b.range)}${b.range_band ? ` (${b.range_band})` : ''}`,
       ];
       lines.push(`       target#: ${parts.join(' · ')}`);
+
       const gatorSum =
         b.gunnery + b.attacker_movement + b.target_movement + b.additional + b.range;
-      const other = s.target_number - gatorSum;
+
+      // Targeting computer: call it out explicitly when the mech has one.
+      const tc = b.targeting_computer || 0;
+      if (b.has_targeting_computer) {
+        if (tc !== 0) {
+          lines.push(`                + targeting computer ${fmtMod(tc)}`);
+        } else {
+          lines.push('                + targeting computer (equipped, not eligible for this weapon)');
+        }
+      }
+
+      // Anything still unaccounted for (e.g. pulse band modifier) folds into a
+      // reconciling line so the itemized values always sum to the target number.
+      const other = s.target_number - gatorSum - tc;
       if (other !== 0) {
-        lines.push(`                + other adjustments ${fmtMod(other)} (e.g. targeting computer / pulse)`);
+        lines.push(`                + other adjustments ${fmtMod(other)} (e.g. pulse)`);
       }
       lines.push(`                = ${s.target_number} needed`);
     }

@@ -181,6 +181,12 @@ class CombatResolver:
             if tc_applies:
                 target_number -= 1
 
+            # Record the targeting-computer contribution for the history log:
+            # whether the mech has one, and the -1 it actually applied to this
+            # shot (0 when the weapon type isn't TC-eligible).
+            breakdown["has_targeting_computer"] = bool(targeting_computer_active)
+            breakdown["targeting_computer"] = -1 if tc_applies else 0
+
             if weapon_type == "ULTRA" and double_tap:
                 resolver: BaseShotResolver = UltraShotResolver(
                     weapon=db_weapon,
