@@ -239,11 +239,19 @@ def save_or_update_mech(payload: MechSaveRequest):
 
             # --- CREATE PATH ---
             else:
-                # Check for a unique constraint designation clash before inserting
-                existing = session.execute(sa.select(Mech).where(Mech.name == payload.designation)).scalar_one_or_none()
+                # A chassis is unique by (name, model) so variants of the same
+                # chassis (e.g. "Turkina" Prime vs "Turkina" A) can coexist.
+                existing = session.execute(
+                    sa.select(Mech).where(
+                        Mech.name == payload.designation,
+                        Mech.model == payload.model,
+                    )
+                ).scalar_one_or_none()
                 if existing:
-                    raise HTTPException(status_code=400,
-                                        detail=f"A Mech designated '{payload.designation}' already exists.")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"A '{payload.designation}' variant '{payload.model}' already exists.",
+                    )
 
                 mech = Mech(
                     name=payload.designation,
@@ -256,6 +264,43 @@ def save_or_update_mech(payload: MechSaveRequest):
 
             session.flush()  # Forces ID tracking assignment generation
             return {"status": "success", "action": status, "mech_id": mech.id}
+
+
+@app.delete("/api/mechs/{mech_id}")
+def delete_mech(mech_id: int):
+    """Remove a chassis from the registry.
+
+    Its weapon mounts and fitted attachment links cascade-delete automatically.
+    A chassis currently deployed into a game session cannot be deleted (the
+    session owns a snapshot that references it) — that returns 409 with the
+    blocking session names so the caller knows what to clear first.
+    """
+    with SessionLocal() as session:
+        with session.begin():
+            mech = session.get(Mech, mech_id)
+            if not mech:
+                raise HTTPException(status_code=404, detail="Mech not found")
+
+            # session_mechs references mechs with ON DELETE RESTRICT, so a
+            # deployed chassis would raise an IntegrityError. Check first and
+            # return a clear 409 instead.
+            deployed = session.execute(
+                select(Session.name)
+                .join(SessionMech, SessionMech.session_id == Session.id)
+                .where(SessionMech.mech_id == mech_id)
+                .distinct()
+            ).scalars().all()
+            if deployed:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Chassis is deployed in session(s): "
+                        f"{', '.join(deployed)}. Remove it from those sessions first."
+                    ),
+                )
+
+            session.delete(mech)
+            return {"status": "deleted", "mech_id": mech_id}
 
 
 @app.post("/api/mechs/{mech_id}/weapons")

@@ -13,9 +13,14 @@ if TYPE_CHECKING:
 
 class Mech(Base):
     __tablename__ = "mechs"
+    # A chassis is identified by its name + variant model, so the same chassis
+    # can exist in multiple configurations (e.g. "Turkina" Prime vs "Turkina" A).
+    __table_args__ = (
+        sa.UniqueConstraint("name", "model", name="uq_mechs_name_model"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     tech_base: Mapped[TechBaseEnum] = mapped_column(
         sa.Enum(TechBaseEnum, name="techbaseenum", inherit_schema=True),
         nullable=False

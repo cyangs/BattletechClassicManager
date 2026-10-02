@@ -19,6 +19,18 @@ export default function MechsLibrary({ mechs, weapons, reload }) {
     mech.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  // Group variants of the same chassis under one name. Each group preserves
+  // roster order; groups themselves are ordered by first appearance.
+  const chassisGroups = [];
+  const groupIndex = new Map();
+  filteredMechs.forEach((mech) => {
+    if (!groupIndex.has(mech.name)) {
+      groupIndex.set(mech.name, chassisGroups.length);
+      chassisGroups.push({ name: mech.name, variants: [] });
+    }
+    chassisGroups[groupIndex.get(mech.name)].variants.push(mech);
+  });
+
   return (
     <div className="flex h-full">
       {/* LEFT: ROSTER & SEARCH */}
@@ -43,27 +55,40 @@ export default function MechsLibrary({ mechs, weapons, reload }) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filteredMechs.map((mech) => (
-            <button
-              key={mech.id}
-              onClick={() => setSelectedId(mech.id)}
-              className={`w-full text-left p-4 border-b border-gray-800 transition-colors flex justify-between items-center ${
-                selectedMech?.id === mech.id
-                  ? 'bg-amber-950/40 border-l-4 border-l-amber-500'
-                  : 'hover:bg-gray-900'
-              }`}
-            >
-              <div>
-                <div className="font-semibold text-white">{mech.name} {mech.model}</div>
-                <div className="text-xs text-amber-500/70 font-mono mt-0.5 uppercase">
-                  {mech.tech_base}
+          {chassisGroups.map((group) => {
+            // A chassis with one variant renders as a single row (unchanged).
+            if (group.variants.length === 1) {
+              const mech = group.variants[0];
+              return (
+                <MechRow
+                  key={mech.id}
+                  label={`${mech.name} ${mech.model ?? ''}`.trim()}
+                  mech={mech}
+                  selected={selectedMech?.id === mech.id}
+                  onSelect={() => setSelectedId(mech.id)}
+                />
+              );
+            }
+            // Multiple variants: a chassis header, then one indented row per model.
+            return (
+              <div key={group.name} className="border-b border-gray-800">
+                <div className="px-4 pt-3 pb-1 text-sm font-bold text-white">
+                  {group.name}
                 </div>
+                {group.variants.map((mech) => (
+                  <MechRow
+                    key={mech.id}
+                    label={`${mech.name} ${mech.model ?? ''}`.trim()}
+                    mech={mech}
+                    selected={selectedMech?.id === mech.id}
+                    onSelect={() => setSelectedId(mech.id)}
+                    indent
+                    borderless
+                  />
+                ))}
               </div>
-              <span className="text-xs px-2 py-0.5 rounded bg-gray-800 border border-gray-700">
-                {mech.tonnage}t
-              </span>
-            </button>
-          ))}
+            );
+          })}
           {filteredMechs.length === 0 && (
             <div className="p-4 text-center text-xs text-gray-500">No mechs match your filter.</div>
           )}
@@ -124,6 +149,34 @@ export default function MechsLibrary({ mechs, weapons, reload }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// One selectable row in the roster sidebar. `indent` nests it under a chassis
+// header (for multi-variant chassis); `borderless` drops the bottom divider so
+// a variant group reads as a single block.
+function MechRow({ label, mech, selected, onSelect, indent, borderless }) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full text-left transition-colors flex justify-between items-center ${
+        indent ? 'pl-7 pr-4 py-2' : 'p-4'
+      } ${borderless ? '' : 'border-b border-gray-800'} ${
+        selected ? 'bg-amber-950/40 border-l-4 border-l-amber-500' : 'hover:bg-gray-900'
+      }`}
+    >
+      <div>
+        <div className={`${indent ? 'text-sm text-gray-200' : 'font-semibold text-white'}`}>
+          {label}
+        </div>
+        <div className="text-xs text-amber-500/70 font-mono mt-0.5 uppercase">
+          {mech.tech_base}
+        </div>
+      </div>
+      <span className="text-xs px-2 py-0.5 rounded bg-gray-800 border border-gray-700">
+        {mech.tonnage}t
+      </span>
+    </button>
   );
 }
 
