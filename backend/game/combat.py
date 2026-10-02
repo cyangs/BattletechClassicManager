@@ -168,15 +168,16 @@ class CombatResolver:
             # into every resolver so the shot rules can account for them.
             attachments = modifications.get("attachments") or []
 
-            # Targeting Computer: -1 to-hit for Standard and ULTRA weapons.
-            # Cluster-spread weapons (LRM, SRM) and Streak do not benefit.
+            # Targeting Computer: -1 to-hit for direct-fire weapons.
+            # Cluster-spread weapons (LRM, SRM) and Streak do NOT benefit — with
+            # one exception: HAG, which (despite rolling on the cluster table)
+            # does get the -1 to-hit.
             # Guard against None (out-of-range shots have no target number).
-            _TC_INELIGIBLE = {True}  # db_weapon.cluster
             tc_applies = (
                 targeting_computer_active
                 and target_number is not None
-                and not db_weapon.cluster
                 and weapon_type not in ("STREAK",)
+                and (not db_weapon.cluster or weapon_type == "HAG")
             )
             if tc_applies:
                 target_number -= 1

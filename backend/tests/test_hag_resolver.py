@@ -123,6 +123,21 @@ class HagResolverTest(unittest.TestCase):
         self.assertFalse(shot.hit)
         self.assertEqual(shot.hit_location, "Target Out of Range")
 
+    def test_targeting_computer_does_not_change_hag_cluster_roll(self):
+        # A TC aids a HAG with a -1 TO-HIT, applied in combat routing by lowering
+        # the target number BEFORE the resolver runs. The resolver itself must
+        # NOT alter the cluster roll for TC. Verify scatter is unaffected: at
+        # MEDIUM the band modifier is 0, so base cluster roll 4 (2+2) -> 9 hits
+        # regardless of the targeting_computer_active flag.
+        with _fixed(6, 6, 2, 2, 3, 4):
+            shot = HagShotResolver(
+                weapon=_hag(), target_number=7,
+                target_facing="Front/Rear", range_band=RangeBand.MEDIUM,
+                targeting_computer_active=True,
+            ).resolve()
+        self.assertTrue(shot.hit)
+        self.assertEqual(shot.cluster_hits_landed, 9)
+
 
 if __name__ == "__main__":
     unittest.main()

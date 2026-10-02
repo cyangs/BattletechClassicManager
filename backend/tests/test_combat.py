@@ -885,6 +885,20 @@ class TargetingComputerTest(unittest.TestCase):
             result_tc["shots"][0]["target_number"],
         )
 
+    def test_tc_affects_hag_as_minus_one_to_hit(self):
+        # Despite being a cluster-table weapon, a HAG DOES benefit from a TC:
+        # a -1 to-hit (lower target number). This is the exception to the
+        # "cluster weapons don't benefit" rule.
+        unit_with_tc = _unit(attachments=[_attachment("TC")])
+        hag = _weapon(name="HAG20", cluster=True, num_shots=20, cluster_damage=1,
+                      damage=20, modifications={"weapon_type": "HAG"})
+        result_no_tc = self._fire(hag, unit=_unit())
+        result_tc    = self._fire(hag, unit=unit_with_tc)
+        self.assertEqual(
+            result_tc["shots"][0]["target_number"],
+            result_no_tc["shots"][0]["target_number"] - 1,
+        )
+
     def test_tc_is_safe_when_weapon_is_out_of_range(self):
         # target_number is None for out-of-range shots; must not raise TypeError.
         unit_with_tc = _unit(attachments=[_attachment("TC")])
