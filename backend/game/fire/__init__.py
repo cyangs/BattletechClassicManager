@@ -33,6 +33,7 @@ from game.fire.lbx import LbxShotResolver
 from game.fire.mrm import MrmShotResolver
 from game.fire.rac import RacShotResolver
 from game.fire.hag import HagShotResolver
+from game.fire.heavy_laser import HeavyLaserShotResolver
 
 __all__ = [
     # Models & enums
@@ -53,6 +54,7 @@ __all__ = [
     "MrmShotResolver",
     "RacShotResolver",
     "HagShotResolver",
+    "HeavyLaserShotResolver",
     # Dice helpers
     "roll_1d6",
     "roll_2d6",

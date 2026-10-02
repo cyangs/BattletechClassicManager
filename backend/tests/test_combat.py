@@ -43,6 +43,7 @@ from game.fire.lbx import LbxShotResolver
 from game.fire.mrm import MrmShotResolver
 from game.fire.rac import RacShotResolver
 from game.fire.hag import HagShotResolver
+from game.fire.heavy_laser import HeavyLaserShotResolver
 from game.combat import CombatResolver
 from game.tables import (
     FRONT_REAR_LOCATION_TABLE,
@@ -805,6 +806,16 @@ class ResolverRoutingTest(unittest.TestCase):
         ) as patched:
             with _all_sixes():
                 self._fire(hag)
+        patched.assert_called_once()
+
+    def test_heavy_laser_uses_heavy_laser_resolver(self):
+        hl = _weapon(name="CLHeavyLargeLaser", cluster=False, damage=16,
+                     modifications={"weapon_type": "HEAVY_LASER"})
+        with mock.patch(
+            "game.combat.HeavyLaserShotResolver", wraps=HeavyLaserShotResolver
+        ) as patched:
+            with _all_sixes():
+                self._fire(hl)
         patched.assert_called_once()
 
 

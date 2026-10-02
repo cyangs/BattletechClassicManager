@@ -36,6 +36,12 @@ const MISSILE_SUBTYPES = [
   { value: 'MRM', label: 'MRM' },
 ];
 
+// Laser-only sub-classification, stored on modifications.weapon_type.
+const LASER_SUBTYPES = [
+  { value: 'NONE', label: 'None' },
+  { value: 'HEAVY_LASER', label: 'Heavy Laser (+1 to-hit)' },
+];
+
 // Missile fire-control attachments, stored on modifications.attachments.
 const MISSILE_ATTACHMENTS = [
   { value: 'NONE', label: 'None' },
@@ -213,6 +219,9 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
   const [missileSubtype, setMissileSubtype] = useState(
     weapon?.modifications?.weapon_type || 'NONE',
   );
+  const [laserSubtype, setLaserSubtype] = useState(
+    weapon?.modifications?.weapon_type || 'NONE',
+  );
   const [missileAttachment, setMissileAttachment] = useState(
     weapon?.modifications?.attachments?.[0] || 'NONE',
   );
@@ -230,6 +239,8 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
       modifications.weapon_type = ballisticSubtype;
     } else if (weaponType === 'MISSILE' && missileSubtype !== 'NONE') {
       modifications.weapon_type = missileSubtype;
+    } else if (weaponType === 'LASER' && laserSubtype !== 'NONE') {
+      modifications.weapon_type = laserSubtype;
     }
 
     // Missile fire-control attachment -> modifications.attachments (a list).
@@ -351,6 +362,24 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
                   className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
                 >
                   {MISSILE_SUBTYPES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {weaponType === 'LASER' && (
+              <div>
+                <label className="block text-xs uppercase text-gray-400 mb-1">Laser Class</label>
+                <select
+                  name="laser_subtype"
+                  value={laserSubtype}
+                  onChange={(e) => setLaserSubtype(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
+                >
+                  {LASER_SUBTYPES.map((s) => (
                     <option key={s.value} value={s.value}>
                       {s.label}
                     </option>

@@ -25,6 +25,7 @@ from game.fire import (
     MrmShotResolver,
     RacShotResolver,
     HagShotResolver,
+    HeavyLaserShotResolver,
     serialize_shot,
     roll_1d6,
     roll_2d6,
@@ -231,6 +232,15 @@ class CombatResolver:
                 # HAG: cluster scatter with a range-based cluster-roll modifier
                 # (+2 short / 0 medium / -2 long). Before the generic cluster branch.
                 resolver = HagShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            elif weapon_type == "HEAVY_LASER":
+                # Heavy laser: single-location hit with a +1 to-hit penalty.
+                resolver = HeavyLaserShotResolver(
                     weapon=db_weapon,
                     target_number=target_number,
                     target_facing=target_facing,
