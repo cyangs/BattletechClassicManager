@@ -24,15 +24,11 @@ class ClusterShotResolver(BaseShotResolver):
         """ Weapon clusters. Roll clusters and hit locations. """
         cluster_hit_roll = roll_1d6() + roll_1d6()
 
-        if "ARTEMISIV" in self.attachments:
-            cluster_hit_roll += 2
-
-        ## TODO - did not account for artemis V having -1 to hit yet
-        if "ARTEMISV" in self.attachments:
-            cluster_hit_roll += 3
-
-        if cluster_hit_roll >= 12:
-            cluster_hit_roll = 12
+        # Apply any modifier to the cluster-table roll (Artemis fire control by
+        # default; subclasses like HAG add a range-based modifier). Clamp to the
+        # table's 2..12 bounds afterward.
+        cluster_hit_roll += self._cluster_roll_bonus()
+        cluster_hit_roll = max(2, min(12, cluster_hit_roll))
 
         cluster_hits = ClusterHitsTable.get_hits(
             max_cluster_size=self.weapon.num_shots,
@@ -85,3 +81,18 @@ class ClusterShotResolver(BaseShotResolver):
             cluster_hits_landed=cluster_hits,
             cluster_hits=group_hits,
         )
+
+    def _cluster_roll_bonus(self) -> int:
+        """Modifier added to the Cluster Hits Table roll.
+
+        Default: missile fire-control attachments (Artemis). Subclasses override
+        or extend this to add their own adjustments — e.g. HAG's range-based
+        +2/0/-2. The result is clamped to the table's 2..12 bounds by the caller.
+        """
+        bonus = 0
+        if "ARTEMISIV" in self.attachments:
+            bonus += 2
+        # TODO: Artemis V also grants -1 to-hit, not yet modeled.
+        if "ARTEMISV" in self.attachments:
+            bonus += 3
+        return bonus

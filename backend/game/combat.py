@@ -24,6 +24,7 @@ from game.fire import (
     LbxShotResolver,
     MrmShotResolver,
     RacShotResolver,
+    HagShotResolver,
     serialize_shot,
     roll_1d6,
     roll_2d6,
@@ -203,6 +204,16 @@ class CombatResolver:
                 # Rotary AC: variable rounds via the cluster table, with a jam
                 # on a natural to-hit 2. Before the generic cluster branch.
                 resolver = RacShotResolver(
+                    weapon=db_weapon,
+                    target_number=target_number,
+                    target_facing=target_facing,
+                    range_band=band,
+                    attachments=attachments,
+                )
+            elif weapon_type == "HAG":
+                # HAG: cluster scatter with a range-based cluster-roll modifier
+                # (+2 short / 0 medium / -2 long). Before the generic cluster branch.
+                resolver = HagShotResolver(
                     weapon=db_weapon,
                     target_number=target_number,
                     target_facing=target_facing,

@@ -24,6 +24,15 @@ export default function Sessions({ sessions, mechs, reload }) {
   // Join-by-code state (players without admin mode).
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState('');
+  // Whether the collapsed "Completed" group in the sidebar is expanded.
+  const [showCompleted, setShowCompleted] = useState(false);
+  // Whether the whole left sidebar is expanded (collapses to a thin strip).
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Split the sidebar list: active/in-progress shown directly, completed
+  // tucked under an expanding toggle.
+  const activeSessions = sessions.filter((s) => s.status !== 'completed');
+  const completedSessions = sessions.filter((s) => s.status === 'completed');
 
   const toggleUnit = (id) =>
     setExpandedUnits((prev) => {
@@ -168,10 +177,35 @@ export default function Sessions({ sessions, mechs, reload }) {
 
   return (
     <div className="flex h-full">
-      {/* LEFT: session list + create */}
+      {/* LEFT: session list + create — collapses to a thin strip. */}
+      {!sidebarOpen && (
+        <div className="w-10 border-r border-gray-800 bg-gray-950 flex flex-col items-center py-3 shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            title="Expand session list"
+            className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-white hover:bg-gray-900"
+          >
+            »
+          </button>
+          <div className="mt-3 text-[10px] uppercase tracking-widest text-amber-500/80 [writing-mode:vertical-rl]">
+            Game Sessions
+          </div>
+        </div>
+      )}
+
+      {sidebarOpen && (
       <div className="w-80 border-r border-gray-800 bg-gray-950 flex flex-col shrink-0">
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-amber-500 mb-3">Game Sessions</h1>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-xl font-bold text-amber-500">Game Sessions</h1>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              title="Collapse session list"
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-white hover:bg-gray-900"
+            >
+              «
+            </button>
+          </div>
 
           {admin ? (
             <>
@@ -251,47 +285,54 @@ export default function Sessions({ sessions, mechs, reload }) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {sessions.map((s) => (
-            <button
+          {/* Active + in-progress sessions, shown directly. */}
+          {activeSessions.map((s) => (
+            <SessionListButton
               key={s.id}
-              onClick={() => {
+              session={s}
+              selected={selectedId === s.id}
+              onSelect={() => {
                 setSelectedId(s.id);
                 setDetailView('combat');
               }}
-              className={`w-full text-left p-4 border-b border-gray-800 transition-colors flex justify-between items-center ${
-                selectedId === s.id
-                  ? 'bg-amber-950/40 border-l-4 border-l-amber-500'
-                  : 'hover:bg-gray-900'
-              }`}
-            >
-              <div>
-                <div className="font-semibold text-white">{s.name}</div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  {s.mechs.length} mech(s)
-                  {s.status === 'in_progress' && ` · Turn ${s.current_turn}`}
-                </div>
-                <div className="text-xs text-gray-600 mt-0.5">
-                  {new Date(s.created_on).toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
-                </div>
-              </div>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-amber-400">
-                {s.status}
-              </span>
-            </button>
+            />
           ))}
-          {sessions.length === 0 && (
+
+          {activeSessions.length === 0 && (
             <div className="p-4 text-center text-xs text-gray-500">
-              No sessions yet. Create one above.
+              No active sessions.{admin ? ' Create one above.' : ' Join one above.'}
+            </div>
+          )}
+
+          {/* Completed sessions, collapsed behind a toggle. */}
+          {completedSessions.length > 0 && (
+            <div className="border-t border-gray-800">
+              <button
+                onClick={() => setShowCompleted((v) => !v)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-gray-400 hover:bg-gray-900"
+              >
+                <span className={`text-[10px] transition-transform duration-150 ${showCompleted ? 'rotate-90' : ''}`}>
+                  ▶
+                </span>
+                Completed ({completedSessions.length})
+              </button>
+              {showCompleted &&
+                completedSessions.map((s) => (
+                  <SessionListButton
+                    key={s.id}
+                    session={s}
+                    selected={selectedId === s.id}
+                    onSelect={() => {
+                      setSelectedId(s.id);
+                      setDetailView('combat');
+                    }}
+                  />
+                ))}
             </div>
           )}
         </div>
       </div>
+      )}
 
       {/* RIGHT: session detail */}
       <div className="flex-1 flex flex-col bg-gray-900 overflow-hidden">
@@ -567,5 +608,40 @@ export default function Sessions({ sessions, mechs, reload }) {
         )}
       </div>
     </div>
+  );
+}
+
+
+// One row in the session sidebar list.
+function SessionListButton({ session: s, selected, onSelect }) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full text-left p-4 border-b border-gray-800 transition-colors flex justify-between items-center ${
+        selected
+          ? 'bg-amber-950/40 border-l-4 border-l-amber-500'
+          : 'hover:bg-gray-900'
+      }`}
+    >
+      <div>
+        <div className="font-semibold text-white">{s.name}</div>
+        <div className="text-xs text-gray-500 mt-0.5">
+          {s.mechs.length} mech(s)
+          {s.status === 'in_progress' && ` · Turn ${s.current_turn}`}
+        </div>
+        <div className="text-xs text-gray-600 mt-0.5">
+          {new Date(s.created_on).toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
+        </div>
+      </div>
+      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-amber-400">
+        {s.status}
+      </span>
+    </button>
   );
 }

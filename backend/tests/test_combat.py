@@ -42,6 +42,7 @@ from game.fire.streak import StreakShotResolver
 from game.fire.lbx import LbxShotResolver
 from game.fire.mrm import MrmShotResolver
 from game.fire.rac import RacShotResolver
+from game.fire.hag import HagShotResolver
 from game.combat import CombatResolver
 from game.tables import (
     FRONT_REAR_LOCATION_TABLE,
@@ -794,6 +795,16 @@ class ResolverRoutingTest(unittest.TestCase):
         ) as patched:
             with _all_sixes():
                 self._fire(rac)
+        patched.assert_called_once()
+
+    def test_hag_uses_hag_resolver_not_generic_cluster(self):
+        hag = _weapon(name="HAG20", cluster=True, num_shots=20, cluster_damage=1,
+                      damage=20, modifications={"weapon_type": "HAG"})
+        with mock.patch(
+            "game.combat.HagShotResolver", wraps=HagShotResolver
+        ) as patched:
+            with _all_sixes():
+                self._fire(hag)
         patched.assert_called_once()
 
 

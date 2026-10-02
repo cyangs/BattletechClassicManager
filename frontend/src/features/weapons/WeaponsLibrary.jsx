@@ -20,10 +20,21 @@ const CATALOG_TABS = [
 const WEAPON_TYPES = ['MISSILE', 'BALLISTIC', 'LASER', 'PPC', 'ARTY', 'OTHER'];
 
 // Ballistic-only sub-classification, stored on modifications.weapon_type.
-const BALLISTIC_SUBTYPES = ['NONE', 'ULTRA'];
+// `value` must match the strings the combat router checks; `label` is display.
+const BALLISTIC_SUBTYPES = [
+  { value: 'NONE', label: 'None' },
+  { value: 'ULTRA', label: 'Ultra AC' },
+  { value: 'LBX', label: 'LB-X AC' },
+  { value: 'RAC', label: 'Rotary AC' },
+  { value: 'HAG', label: 'Hyper-Assault Gauss (HAG)' },
+];
 
 // Missile-only sub-classification, stored on modifications.weapon_type.
-const MISSILE_SUBTYPES = ['NONE', 'STREAK'];
+const MISSILE_SUBTYPES = [
+  { value: 'NONE', label: 'None' },
+  { value: 'STREAK', label: 'Streak' },
+  { value: 'MRM', label: 'MRM' },
+];
 
 // Missile fire-control attachments, stored on modifications.attachments.
 const MISSILE_ATTACHMENTS = [
@@ -322,8 +333,8 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
                   className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
                 >
                   {BALLISTIC_SUBTYPES.map((s) => (
-                    <option key={s} value={s}>
-                      {s.charAt(0) + s.slice(1).toLowerCase()}
+                    <option key={s.value} value={s.value}>
+                      {s.label}
                     </option>
                   ))}
                 </select>
@@ -340,8 +351,8 @@ function WeaponEditor({ weapon, onClose, onSaved }) {
                   className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-amber-500"
                 >
                   {MISSILE_SUBTYPES.map((s) => (
-                    <option key={s} value={s}>
-                      {s.charAt(0) + s.slice(1).toLowerCase()}
+                    <option key={s.value} value={s.value}>
+                      {s.label}
                     </option>
                   ))}
                 </select>
