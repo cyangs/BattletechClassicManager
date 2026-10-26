@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { API } from '../../api';
+import HomeOverview from '../../components/HomeOverview';
 import MechsLibrary from '../mechs/MechsLibrary';
 import WeaponsLibrary from '../weapons/WeaponsLibrary';
 import Sessions from '../sessions/Sessions';
 import { SettingsMenu } from './SettingsMenu';
 
 const TABS = [
+  { id: 'home', label: '🏠 Home' },
   { id: 'mechs', label: '🤖 Mechs Library' },
   { id: 'weapons', label: '⚔️ Weapons & Parts Library' },
   { id: 'sessions', label: '🎲 Sessions' },
@@ -15,8 +17,8 @@ const TABS = [
 // =====================================================================
 // ROOT: top-level tab shell shared across the three libraries
 // =====================================================================
-export default function MechDashboard() {
-  const [tab, setTab] = useState('mechs');
+export default function MechDashboard({ onExit }) {
+  const [tab, setTab] = useState('home');
   const [mechs, setMechs] = useState([]);
   const [weapons, setWeapons] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -46,6 +48,15 @@ export default function MechDashboard() {
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100 font-sans">
       {/* TOP NAVIGATION BAR */}
       <header className="flex items-center gap-8 px-6 h-16 bg-gray-950 border-b border-gray-800 shrink-0">
+        {onExit && (
+          <button
+            onClick={onExit}
+            title="Back to game selection"
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-white hover:bg-gray-900"
+          >
+            ←
+          </button>
+        )}
         <div className="text-lg font-bold text-amber-500 whitespace-nowrap">
           Calvin's Super Awesome BattleTech Campaign Manager Beta Version 1.0
         </div>
@@ -79,6 +90,7 @@ export default function MechDashboard() {
           </div>
         ) : (
           <>
+            {tab === 'home' && <HomeOverview system="classic" />}
             {tab === 'mechs' && (
               <MechsLibrary mechs={mechs} weapons={weapons} reload={loadMechs} />
             )}

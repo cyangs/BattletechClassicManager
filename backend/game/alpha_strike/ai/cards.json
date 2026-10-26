@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "_note": "Aces AI control-card deck. The first BRAWLER card is a real transcribed card. The rest are TEMPLATES — replace every \"TODO: ...\" string with the real card text from your own copy. Add as many cards per role as you like; the Automate button draws a random one matching the unit's role. Roles are matched case-insensitively against the unit's Alpha Strike card role.",
+  "cards": [
+    {
+      "role": "BRAWLER",
+      "card_number": "01/06",
+      "activation_number": 72,
+      "movement": {
+        "if_first": {
+          "trigger": "If this is the VERY FIRST AI unit to move this round because the AI team lost initiative.",
+          "action": "RUSH TARGET. Ignore all cover and terrain filters. Move at maximum Ground Speed directly toward the closest enemy unit in your front arc. Gain +1 to your Target Movement Modifier (TMM) if you cross water or difficult terrain."
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "Enemy unit is within Short Range (0\"-6\") AND in line of sight.",
+            "filters": [
+              "Move closer to the closest enemy, prioritizing their Rear Arc.",
+              "Avoid ending movement in a player's Firing Arc if possible.",
+              "Maximize physical attack opportunities (Charging/Death from Above)."
+            ]
+          },
+          "balanced": {
+            "condition": "Enemy unit is within Medium Range (6\"-24\") OR AI armor is below 50%.",
+            "filters": [
+              "Move toward the closest enemy, but maximize Heavy Cover / Woods.",
+              "Maintain Medium Range distance; do not close to Short Range.",
+              "Filter out positions that expose the AI's Rear Arc to any active enemy."
+            ]
+          },
+          "cautious": {
+            "condition": "AI unit is Shutdown, Immobilized, or out of ammo.",
+            "filters": [
+              "Stand Ground / Do Not Move.",
+              "If forced to move, choose the path that maximizes Defensive TMM.",
+              "Face the highest-threat enemy directly to utilize front armor."
+            ]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": [
+          "Target is in the AI's Front Firing Arc and has already completed its movement this turn.",
+          "Target is the Primary Target designated by the scenario's Commander Card.",
+          "Target requires the Lowest Target Number (TN) to hit.",
+          "Tie-Breaker: Target with the lowest remaining Armor/Structure."
+        ],
+        "overheat": "If this unit has the OV (Overheat) capability, it will Overheat OV+1 if the modified Target Number to hit its selected target is 8 or less.",
+        "special": [
+          "Physical Attack Priority: If the AI ended its movement base-to-base with a player unit, it will automatically opt to Physical Attack (Kick/Punch) instead of firing short-range weapons if the physical attack damage is higher."
+        ]
+      }
+    },
+
+    {
+      "role": "SNIPER",
+      "card_number": "TODO: e.g. 01/06",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO: when the 'if first to move' rule triggers (or delete this whole if_first block if the card has none).",
+          "action": "TODO: what the unit does when it is the first to move."
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO: condition that selects the Aggressive posture.",
+            "filters": [
+              "TODO: aggressive movement filter 1.",
+              "TODO: aggressive movement filter 2.",
+              "TODO: aggressive movement filter 3."
+            ]
+          },
+          "balanced": {
+            "condition": "TODO: condition that selects the Balanced posture.",
+            "filters": [
+              "TODO: balanced movement filter 1.",
+              "TODO: balanced movement filter 2."
+            ]
+          },
+          "cautious": {
+            "condition": "TODO: condition that selects the Cautious posture.",
+            "filters": [
+              "TODO: cautious movement filter 1.",
+              "TODO: cautious movement filter 2."
+            ]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": [
+          "TODO: target selection rule 1 (evaluated top to bottom).",
+          "TODO: target selection rule 2.",
+          "TODO: tie-breaker."
+        ],
+        "overheat": "TODO: overheat (OV) logic, or delete this field if the card has none.",
+        "special": [
+          "TODO: any special-ability logic, or delete this array if none."
+        ]
+      }
+    },
+
+    {
+      "role": "SKIRMISHER",
+      "card_number": "TODO",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO (or delete this if_first block).",
+          "action": "TODO"
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "balanced": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "cautious": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": ["TODO", "TODO"],
+        "overheat": "TODO (or delete this field).",
+        "special": []
+      }
+    },
+
+    {
+      "role": "SCOUT",
+      "card_number": "TODO",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO (or delete this if_first block).",
+          "action": "TODO"
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "balanced": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "cautious": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": ["TODO", "TODO"],
+        "overheat": "TODO (or delete this field).",
+        "special": []
+      }
+    },
+
+    {
+      "role": "STRIKER",
+      "card_number": "TODO",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO (or delete this if_first block).",
+          "action": "TODO"
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "balanced": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "cautious": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": ["TODO", "TODO"],
+        "overheat": "TODO (or delete this field).",
+        "special": []
+      }
+    },
+
+    {
+      "role": "JUGGERNAUT",
+      "card_number": "TODO",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO (or delete this if_first block).",
+          "action": "TODO"
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "balanced": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "cautious": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": ["TODO", "TODO"],
+        "overheat": "TODO (or delete this field).",
+        "special": []
+      }
+    },
+
+    {
+      "role": "MISSILE_BOAT",
+      "card_number": "TODO",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO (or delete this if_first block).",
+          "action": "TODO"
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "balanced": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "cautious": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": ["TODO", "TODO"],
+        "overheat": "TODO (or delete this field).",
+        "special": []
+      }
+    },
+
+    {
+      "role": "AMBUSHER",
+      "card_number": "TODO",
+      "activation_number": null,
+      "movement": {
+        "if_first": {
+          "trigger": "TODO (or delete this if_first block).",
+          "action": "TODO"
+        },
+        "postures": {
+          "aggressive": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "balanced": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          },
+          "cautious": {
+            "condition": "TODO",
+            "filters": ["TODO", "TODO"]
+          }
+        }
+      },
+      "combat": {
+        "target_selection": ["TODO", "TODO"],
+        "overheat": "TODO (or delete this field).",
+        "special": []
+      }
+    }
+  ]
+}

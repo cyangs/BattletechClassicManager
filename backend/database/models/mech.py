@@ -10,6 +10,7 @@ from .enums import TechBaseEnum
 if TYPE_CHECKING:
     from weapon import MechWeapon
     from attachments import Attachments
+    from alpha_strike import AlphaStrikeCard
 
 class Mech(Base):
     __tablename__ = "mechs"
@@ -36,4 +37,12 @@ class Mech(Base):
     # Chassis-level equipment (attachment_type "mech") fitted onto this mech.
     attachments: Mapped[List["Attachments"]] = relationship(
         secondary="mech_attachment_link"
+    )
+
+    # The chassis's Alpha Strike stat card (1:1, optional). None until an AS
+    # card is created for this mech.
+    alpha_strike_card: Mapped["AlphaStrikeCard"] = relationship(
+        back_populates="mech",
+        cascade="all, delete-orphan",
+        uselist=False,
     )

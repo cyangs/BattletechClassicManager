@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from config import SessionLocal, DATABASE_URL
 #  To this absolute package layout path:
 from database.models.mech import Mech
+from database.models.alpha_strike import AlphaStrikeCard
 from database.models.weapon import MechWeapon, Weapon
 from database.models.attachments import Attachments
 from database.models.ammo_type import AmmoType
@@ -31,6 +32,8 @@ from database.models.session import (
 )
 from database.dao.weapon_repository import WeaponRepository
 from game.combat import CombatResolver
+from game.alpha_strike import AlphaStrikeCombatResolver, serialize_as_attack
+from game.alpha_strike.ai import get_deck, all_roles
 
 app = FastAPI(title="BattleTech Classic Manager API")
 
@@ -103,6 +106,36 @@ class CreateSessionRequest(BaseModel):
     # Display name of the session creator, who becomes the lobby admin.
     # Optional for backward compatibility; falls back to "Admin" when omitted.
     admin_name: Optional[str] = None
+    # Which game system this session plays.
+    game_system: str = "classic"           # "classic" | "alpha_strike"
+    # Alpha Strike damage mode (ignored for Classic).
+    as_damage_mode: str = "standard"        # "standard" | "variable"
+
+
+class AlphaStrikeCardSaveRequest(BaseModel):
+    mech_id: int                            # chassis this card belongs to (1:1)
+    point_value: Optional[int] = None
+    size: Optional[int] = None
+    role: Optional[str] = Field(None, max_length=40)
+    move: Optional[int] = None
+    move_type: Optional[str] = Field(None, max_length=10)
+    tmm: Optional[int] = None
+    damage_short: int = Field(0, ge=0)
+    damage_medium: int = Field(0, ge=0)
+    damage_long: int = Field(0, ge=0)
+    overheat: int = Field(0, ge=0)
+    armor: int = Field(0, ge=0)
+    structure: int = Field(0, ge=0)
+    specials: Optional[List[str]] = None
+
+
+class AsAttackRequest(BaseModel):
+    session_mech_id: int                    # the attacking unit
+    target_session_mech_id: int             # the unit being attacked
+    distance: int = Field(0, ge=0)          # range to target, in inches
+    pilot_skill: int = Field(4, ge=0, le=8)
+    attacker_movement_modifier: int = 0
+    additional_modifier: int = 0
 
 
 class JoinSessionRequest(BaseModel):
@@ -303,6 +336,87 @@ def delete_mech(mech_id: int):
             return {"status": "deleted", "mech_id": mech_id}
 
 
+# ---------------------------------------------------------------------------
+# Alpha Strike cards (1:1 with a chassis)
+# ---------------------------------------------------------------------------
+
+def _serialize_as_card(card: AlphaStrikeCard) -> dict:
+    """JSON-safe view of an Alpha Strike stat card."""
+    return {
+        "id": card.id,
+        "mech_id": card.mech_id,
+        "point_value": card.point_value,
+        "size": card.size,
+        "role": card.role,
+        "move": card.move,
+        "move_type": card.move_type,
+        "tmm": card.tmm,
+        "damage_short": card.damage_short,
+        "damage_medium": card.damage_medium,
+        "damage_long": card.damage_long,
+        "overheat": card.overheat,
+        "armor": card.armor,
+        "structure": card.structure,
+        "specials": card.specials,
+    }
+
+
+@app.get("/api/ai-cards")
+def get_ai_cards():
+    """The full Aces AI control-card deck (hardcoded, read-only).
+
+    The frontend picks a random card for a unit's role client-side, so the
+    whole deck is returned as-is. ``roles`` is a convenience list of the
+    distinct roles present in the deck.
+    """
+    return {**get_deck(), "roles": all_roles()}
+
+
+@app.get("/api/mechs/{mech_id}/alpha-strike")
+def get_alpha_strike_card(mech_id: int):
+    """Fetch the Alpha Strike card for a chassis (404 if none exists yet)."""
+    with SessionLocal() as session:
+        card = session.execute(
+            select(AlphaStrikeCard).where(AlphaStrikeCard.mech_id == mech_id)
+        ).scalar_one_or_none()
+        if not card:
+            raise HTTPException(status_code=404, detail="No Alpha Strike card for this chassis")
+        return _serialize_as_card(card)
+
+
+@app.post("/api/alpha-strike/cards/save")
+def save_alpha_strike_card(payload: AlphaStrikeCardSaveRequest):
+    """Create or update a chassis's Alpha Strike card (upsert on mech_id)."""
+    with SessionLocal() as session:
+        with session.begin():
+            if not session.get(Mech, payload.mech_id):
+                raise HTTPException(status_code=404, detail="Target BattleMech row not found")
+
+            card = session.execute(
+                select(AlphaStrikeCard).where(AlphaStrikeCard.mech_id == payload.mech_id)
+            ).scalar_one_or_none()
+            action = "updated" if card else "created"
+            if not card:
+                card = AlphaStrikeCard(mech_id=payload.mech_id)
+                session.add(card)
+
+            card.point_value = payload.point_value
+            card.size = payload.size
+            card.role = payload.role
+            card.move = payload.move
+            card.move_type = payload.move_type
+            card.tmm = payload.tmm
+            card.damage_short = payload.damage_short
+            card.damage_medium = payload.damage_medium
+            card.damage_long = payload.damage_long
+            card.overheat = payload.overheat
+            card.armor = payload.armor
+            card.structure = payload.structure
+            card.specials = payload.specials
+            session.flush()
+            return {"status": "success", "action": action, "mech_id": payload.mech_id}
+
+
 @app.post("/api/mechs/{mech_id}/weapons")
 def add_weapon_to_mech(mech_id: int, payload: AddWeaponLinkRequest):
     """Mounts a weapon from the catalog onto a mech at a given location."""
@@ -381,10 +495,15 @@ def remove_attachment_from_mech(mech_id: int, sku: str):
 
 def _deploy_unit(db, session_id: int, master: "Mech", *, team: str,
                  pilot_name: Optional[str] = None, pilot_gunnery_skill: int = 4,
-                 accent_color: Optional[str] = None) -> SessionMech:
-    """Create a SessionMech and snapshot the master mech's loadout into
-    session-owned rows. A master mount of count N becomes N individual weapon
-    instances so each can be disabled/destroyed on its own during play."""
+                 accent_color: Optional[str] = None,
+                 game_system: str = "classic") -> SessionMech:
+    """Create a SessionMech for a chassis.
+
+    For Classic sessions this snapshots the master mech's loadout into
+    session-owned weapon/attachment rows (a master mount of count N becomes N
+    individual instances). For Alpha Strike sessions there is no per-weapon
+    state; instead the unit's current armor/structure are seeded from the
+    chassis's AS card so combat can whittle them down."""
     unit = SessionMech(
         session_id=session_id,
         mech_id=master.id,
@@ -395,6 +514,15 @@ def _deploy_unit(db, session_id: int, master: "Mech", *, team: str,
     )
     db.add(unit)
 
+    if game_system == "alpha_strike":
+        # Seed live defense from the AS card (if the chassis has one).
+        card = master.alpha_strike_card
+        if card is not None:
+            unit.as_armor_current = card.armor
+            unit.as_structure_current = card.structure
+        return unit
+
+    # Classic: snapshot the loadout.
     for link in master.weapon_links:
         for _ in range(max(1, link.count)):
             unit.weapons.append(SessionMechWeapon(
@@ -414,7 +542,12 @@ def _deploy_unit(db, session_id: int, master: "Mech", *, team: str,
 def create_session(payload: CreateSessionRequest):
     with SessionLocal() as session:
         with session.begin():
-            new_session = Session(name=payload.name, join_code=_new_join_code())
+            new_session = Session(
+                name=payload.name,
+                join_code=_new_join_code(),
+                game_system=payload.game_system,
+                as_damage_mode=payload.as_damage_mode,
+            )
             session.add(new_session)
             session.flush() # Populate the ID
 
@@ -434,7 +567,8 @@ def create_session(payload: CreateSessionRequest):
                 master = session.get(Mech, m_id)
                 if not master:
                     raise HTTPException(status_code=404, detail=f"Enemy chassis {m_id} not found")
-                _deploy_unit(session, new_session.id, master, team="enemy")
+                _deploy_unit(session, new_session.id, master, team="enemy",
+                             game_system=new_session.game_system)
 
             return {
                 "id": new_session.id,
@@ -443,6 +577,8 @@ def create_session(payload: CreateSessionRequest):
                 "current_turn": new_session.current_turn,
                 "created_on": new_session.created_on,
                 "join_code": new_session.join_code,
+                "game_system": new_session.game_system,
+                "as_damage_mode": new_session.as_damage_mode,
                 # The creator's credential — the client stores this to act as admin.
                 "player_token": admin_token,
                 "player_id": admin.id,
@@ -653,6 +789,77 @@ def fire_weapons(session_id: int, payload: FireWeaponsRequest):
         return result
 
 
+@app.post("/api/sessions/{session_id}/as-attack")
+def alpha_strike_attack(session_id: int, payload: AsAttackRequest):
+    """Resolve one Alpha Strike attack: roll to-hit + damage, apply it to the
+    target's armor/structure, and log the event."""
+    with SessionLocal() as session:
+        game = session.get(Session, session_id)
+        if not game:
+            raise HTTPException(status_code=404, detail="Game session not found")
+        if game.game_system != "alpha_strike":
+            raise HTTPException(status_code=400, detail="This session is not an Alpha Strike game")
+        if game.status == "completed":
+            raise HTTPException(status_code=400, detail="Session has ended")
+
+        def _load_unit(unit_id):
+            return session.execute(
+                select(SessionMech)
+                .options(selectinload(SessionMech.master_mech).selectinload(Mech.alpha_strike_card))
+                .where(SessionMech.id == unit_id)
+            ).scalar_one_or_none()
+
+        attacker = _load_unit(payload.session_mech_id)
+        if not attacker or attacker.session_id != session_id:
+            raise HTTPException(status_code=404, detail="Attacking mech not found in this session")
+        target = _load_unit(payload.target_session_mech_id)
+        if not target or target.session_id != session_id:
+            raise HTTPException(status_code=404, detail="Target mech not found in this session")
+
+        attacker_card = attacker.master_mech.alpha_strike_card if attacker.master_mech else None
+        target_card = target.master_mech.alpha_strike_card if target.master_mech else None
+        if attacker_card is None:
+            raise HTTPException(status_code=400, detail="Attacking chassis has no Alpha Strike card")
+        if target_card is None:
+            raise HTTPException(status_code=400, detail="Target chassis has no Alpha Strike card")
+
+        result = AlphaStrikeCombatResolver(
+            attacker_card=attacker_card,
+            target_card=target_card,
+            pilot_skill=payload.pilot_skill,
+            distance=payload.distance,
+            damage_mode=game.as_damage_mode,
+            target_armor=target.as_armor_current if target.as_armor_current is not None else target_card.armor,
+            target_structure=target.as_structure_current if target.as_structure_current is not None else target_card.structure,
+            attacker_movement_modifier=payload.attacker_movement_modifier,
+            additional_modifier=payload.additional_modifier,
+            attacker_name=attacker.master_mech.name if attacker.master_mech else None,
+            target_name=target.master_mech.name if target.master_mech else None,
+        ).resolve()
+
+        # Persist the new defense totals on the target.
+        target.as_armor_current = result.target_armor_after
+        target.as_structure_current = result.target_structure_after
+
+        payload_json = serialize_as_attack(result)
+        payload_json["turn"] = game.current_turn
+        payload_json["target_session_mech_id"] = target.id
+
+        event = SessionEvent(
+            session_id=session_id,
+            turn=game.current_turn,
+            event_type="as_attack",
+            session_mech_id=payload.session_mech_id,
+            attacker=result.attacker,
+            target=result.target,
+            payload=payload_json,
+        )
+        session.add(event)
+        session.commit()
+        payload_json["event_id"] = event.id
+        return payload_json
+
+
 @app.delete("/api/sessions/{session_id}/events/{event_id}")
 def undo_event(session_id: int, event_id: int):
     """Removes a logged event (used to undo a weapon fire before the turn ends)."""
@@ -716,7 +923,8 @@ def set_attachment_destroyed(session_id: int, session_mech_id: int, payload: Att
 def add_mechs_to_session(session_id: int, payload: AddMechsRequest):
     with SessionLocal() as session:
         with session.begin():
-            if not session.get(Session, session_id):
+            game = session.get(Session, session_id)
+            if not game:
                 raise HTTPException(status_code=404, detail="Game session not found")
             inserted_units = []
             for m_id in payload.mech_ids:
@@ -729,6 +937,7 @@ def add_mechs_to_session(session_id: int, payload: AddMechsRequest):
                     pilot_name=payload.pilot_name,
                     pilot_gunnery_skill=payload.pilot_gunnery_skill,
                     accent_color=payload.accent_color,
+                    game_system=game.game_system,
                 )
                 inserted_units.append(m_id)
             return {"status": "success", "added_mech_ids": inserted_units}
@@ -741,7 +950,7 @@ def get_all_sessions():
         stmt = (
             select(Session)
             .options(
-                selectinload(Session.mechs).selectinload(SessionMech.master_mech),
+                selectinload(Session.mechs).selectinload(SessionMech.master_mech).selectinload(Mech.alpha_strike_card),
                 selectinload(Session.mechs).selectinload(SessionMech.weapons).selectinload(SessionMechWeapon.weapon),
                 selectinload(Session.mechs).selectinload(SessionMech.attachments).selectinload(SessionMechAttachment.attachment),
                 selectinload(Session.events),
@@ -802,6 +1011,11 @@ def get_all_sessions():
                     "fired_this_turn": unit.id in fired_events,
                     "fire_event_id": fired_events.get(unit.id),
                     "accent_color": unit.accent_color,
+                    # Alpha Strike per-unit combat state (None for Classic units).
+                    "as_armor_current": unit.as_armor_current,
+                    "as_structure_current": unit.as_structure_current,
+                    "alpha_strike_card": _serialize_as_card(m.alpha_strike_card)
+                        if (m and m.alpha_strike_card) else None,
                 })
             data.append({
                 "id": s.id,
@@ -810,6 +1024,8 @@ def get_all_sessions():
                 "current_turn": s.current_turn,
                 "created_on": s.created_on,
                 "join_code": s.join_code,
+                "game_system": s.game_system,
+                "as_damage_mode": s.as_damage_mode,
                 "players": [{
                     "id": p.id,
                     "display_name": p.display_name,
@@ -1068,6 +1284,7 @@ def get_all_mechs():
                 .options(
                     selectinload(Mech.weapon_links).selectinload(MechWeapon.weapon),
                     selectinload(Mech.attachments),
+                    selectinload(Mech.alpha_strike_card),
                 )
                 .order_by(Mech.name)
             )
@@ -1115,6 +1332,9 @@ def get_all_mechs():
                     "tonnage": mech.tonnage,
                     "weapon_links": weapons_payload,
                     "attachments": attachments_payload,
+                    # Alpha Strike card (None if this chassis has no AS card).
+                    "alpha_strike_card": _serialize_as_card(mech.alpha_strike_card)
+                        if mech.alpha_strike_card else None,
                 })
 
             return response_data

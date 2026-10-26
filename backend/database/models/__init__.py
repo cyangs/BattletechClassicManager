@@ -6,6 +6,7 @@ from .weapon import Weapon, MechWeapon
 from .attachments import Attachments
 from .ammo_type import AmmoType
 from .mech import Mech
+from .alpha_strike import AlphaStrikeCard
 from .session import (
     Session,
     SessionMech,

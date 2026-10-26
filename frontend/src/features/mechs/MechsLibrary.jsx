@@ -137,6 +137,15 @@ export default function MechsLibrary({ mechs, weapons, reload }) {
             </Section>
           </div>
 
+          {/* Full-width: Alpha Strike stat card for this chassis. */}
+          {selectedMech && (
+            <div className="mt-8">
+              <Section title="⚡ Alpha Strike Card">
+                <AlphaStrikeCardEditor mech={selectedMech} />
+              </Section>
+            </div>
+          )}
+
           <div className="mt-6 flex justify-center">
             <button
               type="submit"
@@ -443,6 +452,134 @@ function MechWeapons({ mech, weapons, reload }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Alpha Strike stat card for a chassis. Loads the existing card (if any) for
+// the selected mech and lets you create/update it. The card is 1:1 with the
+// chassis, so it's keyed on mech.id.
+function AlphaStrikeCardEditor({ mech }) {
+  const [card, setCard] = useState(null);     // existing card, or null if none
+  const [loaded, setLoaded] = useState(false);
+  const [status, setStatus] = useState(null); // { ok, message }
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    setStatus(null);
+    fetch(`${API}/api/mechs/${mech.id}/alpha-strike`)
+      .then((res) => (res.ok ? res.json() : null)) // 404 -> no card yet
+      .then((body) => {
+        if (!cancelled) {
+          setCard(body);
+          setLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mech.id]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const num = (v) => (v === '' || v == null ? null : parseInt(v, 10));
+    const intOr0 = (v) => parseInt(v, 10) || 0;
+    const specialsRaw = (fd.get('specials') || '').trim();
+
+    const payload = {
+      mech_id: mech.id,
+      point_value: num(fd.get('point_value')),
+      size: num(fd.get('size')),
+      role: fd.get('role') || null,
+      move: num(fd.get('move')),
+      move_type: fd.get('move_type') || null,
+      tmm: num(fd.get('tmm')),
+      damage_short: intOr0(fd.get('damage_short')),
+      damage_medium: intOr0(fd.get('damage_medium')),
+      damage_long: intOr0(fd.get('damage_long')),
+      overheat: intOr0(fd.get('overheat')),
+      armor: intOr0(fd.get('armor')),
+      structure: intOr0(fd.get('structure')),
+      // Comma-separated ability codes -> list (or null if empty).
+      specials: specialsRaw ? specialsRaw.split(',').map((s) => s.trim()).filter(Boolean) : null,
+    };
+
+    fetch(`${API}/api/alpha-strike/cards/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || 'Save failed');
+        setStatus({ ok: true, message: `Card ${body.action}.` });
+        // Reflect the saved values back into local state.
+        setCard({ ...payload });
+      })
+      .catch((err) => setStatus({ ok: false, message: err.message }));
+  };
+
+  if (!loaded) {
+    return <div className="text-sm text-gray-500">Loading Alpha Strike card…</div>;
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      key={mech.id}  // reset defaults when switching chassis
+      className="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-4"
+    >
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <LabeledInput name="point_value" label="Point Value" type="number" defaultValue={card?.point_value ?? ''} />
+        <LabeledInput name="size" label="Size" type="number" min="1" max="4" defaultValue={card?.size ?? ''} />
+        <LabeledInput name="move" label="Move (in)" type="number" min="0" defaultValue={card?.move ?? ''} />
+        <LabeledInput name="move_type" label="Move Type" defaultValue={card?.move_type ?? ''} placeholder="e.g. j" />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <LabeledInput name="tmm" label="TMM" type="number" min="0" defaultValue={card?.tmm ?? ''} />
+        <LabeledInput name="armor" label="Armor" type="number" min="0" defaultValue={card?.armor ?? ''} />
+        <LabeledInput name="structure" label="Structure" type="number" min="0" defaultValue={card?.structure ?? ''} />
+        <LabeledInput name="overheat" label="Overheat" type="number" min="0" defaultValue={card?.overheat ?? ''} />
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-amber-500/80 mb-1">Bracket Damage</div>
+        <div className="grid grid-cols-3 gap-3">
+          <LabeledInput name="damage_short" label="Short" type="number" min="0" defaultValue={card?.damage_short ?? ''} />
+          <LabeledInput name="damage_medium" label="Medium" type="number" min="0" defaultValue={card?.damage_medium ?? ''} />
+          <LabeledInput name="damage_long" label="Long" type="number" min="0" defaultValue={card?.damage_long ?? ''} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <LabeledInput name="role" label="Role" defaultValue={card?.role ?? ''} placeholder="e.g. Skirmisher" />
+        <LabeledInput
+          name="specials"
+          label="Specials (comma-separated)"
+          defaultValue={(card?.specials ?? []).join(', ')}
+          placeholder="e.g. CASE, ECM"
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          className="px-4 py-2 bg-amber-600 hover:bg-amber-700 font-bold rounded text-white text-sm"
+        >
+          {card ? '💾 Save Alpha Strike Card' : '⚡ Create Alpha Strike Card'}
+        </button>
+        {status && (
+          <span className={`text-xs ${status.ok ? 'text-green-400' : 'text-red-400'}`}>
+            {status.message}
+          </span>
+        )}
+      </div>
+    </form>
   );
 }
 

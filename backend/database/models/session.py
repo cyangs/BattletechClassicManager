@@ -23,6 +23,11 @@ class Session(Base):
     created_on: Mapped[DateTime] = mapped_column(sa.DateTime, nullable=False, default=datetime.now(timezone.utc))
     # Shareable code players use to join this session. UUID hex string, unique.
     join_code: Mapped[str | None] = mapped_column(sa.String(36), nullable=True, unique=True)
+    # Which game system this session plays: "classic" or "alpha_strike".
+    game_system: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="classic")
+    # Alpha Strike only: "standard" (all-or-nothing) or "variable" (2d6 per
+    # point of bracket damage). Ignored for Classic sessions.
+    as_damage_mode: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="standard")
 
     # Relationship to get all mechs in this specific game session
     mechs: Mapped[List["SessionMech"]] = relationship(
@@ -55,6 +60,11 @@ class SessionMech(Base):
     # Optional accent colour label (e.g. 'amber', 'sky') chosen in the lobby to
     # visually distinguish duplicate chassis. NULL = no colour (default appearance).
     accent_color: Mapped[str | None] = mapped_column(sa.String(30), nullable=True)
+    # Alpha Strike combat state — the unit's remaining armor/structure pips,
+    # seeded from its AS card when deployed into an AS session. NULL for Classic
+    # sessions (which track damage differently / not at all yet).
+    as_armor_current: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    as_structure_current: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
 
     # Database joins to travel between entities
     session: Mapped["Session"] = relationship(back_populates="mechs")

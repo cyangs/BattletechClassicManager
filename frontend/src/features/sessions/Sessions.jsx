@@ -29,11 +29,6 @@ export default function Sessions({ sessions, mechs, reload }) {
   // Whether the whole left sidebar is expanded (collapses to a thin strip).
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Split the sidebar list: active/in-progress shown directly, completed
-  // tucked under an expanding toggle.
-  const activeSessions = sessions.filter((s) => s.status !== 'completed');
-  const completedSessions = sessions.filter((s) => s.status === 'completed');
-
   const toggleUnit = (id) =>
     setExpandedUnits((prev) => {
       const next = new Set(prev);
@@ -42,7 +37,16 @@ export default function Sessions({ sessions, mechs, reload }) {
       return next;
     });
 
-  const selected = sessions.find((s) => s.id === selectedId) ?? null;
+  // Only Classic sessions belong in this tab (Alpha Strike has its own app).
+  // Treat a missing game_system as "classic" for any legacy rows.
+  const classicSessions = sessions.filter((s) => (s.game_system ?? 'classic') !== 'alpha_strike');
+  // Scope selection to Classic sessions so an Alpha Strike id can never open here.
+  const selected = classicSessions.find((s) => s.id === selectedId) ?? null;
+
+  // Split the sidebar list: active/in-progress shown directly, completed
+  // tucked under an expanding toggle. (Scoped to Classic via classicSessions.)
+  const activeSessions = classicSessions.filter((s) => s.status !== 'completed');
+  const completedSessions = classicSessions.filter((s) => s.status === 'completed');
 
   const createSession = (e) => {
     e.preventDefault();
@@ -50,7 +54,7 @@ export default function Sessions({ sessions, mechs, reload }) {
     fetch(`${API}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim(), admin_name: 'Admin' }),
+      body: JSON.stringify({ name: newName.trim(), admin_name: 'Admin', game_system: 'classic' }),
     })
       .then((r) => r.json())
       .then((created) => {
