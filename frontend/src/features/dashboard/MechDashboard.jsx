@@ -90,7 +90,7 @@ export default function MechDashboard({ onExit }) {
           </div>
         ) : (
           <>
-            {tab === 'home' && <HomeOverview system="classic" />}
+            {tab === 'home' && <HomeOverview system="classic" onNavigate={setTab} />}
             {tab === 'mechs' && (
               <MechsLibrary mechs={mechs} weapons={weapons} reload={loadMechs} />
             )}

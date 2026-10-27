@@ -88,7 +88,7 @@ export default function AlphaStrikeApp({ onExit }) {
           </div>
         ) : (
           <>
-            {tab === 'home' && <HomeOverview system="alpha_strike" />}
+            {tab === 'home' && <HomeOverview system="alpha_strike" onNavigate={setTab} />}
             {tab === 'games' && (
               <AsSessions sessions={sessions} mechs={mechs} reload={loadSessions} />
             )}

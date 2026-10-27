@@ -283,10 +283,12 @@ export default function AsSessions({ sessions, mechs, reload }) {
   );
 }
 
-// A player unit's combat card, optionally with a drawn Aces AI control card to
-// its left. "Automate" draws a random card matching the unit's role.
+// A single expandable container holding a player unit's combat card and, once
+// an AI control card has been drawn, that card to its LEFT at equal height.
+// One header owns the collapse toggle + the Automate / Draw / Clear controls.
 function AsUnitWithAi({ sessionId, unit, enemies, aiDeck, reload }) {
   const [drawn, setDrawn] = useState(null);
+  const [open, setOpen] = useState(true);
 
   const role = unit.alpha_strike_card?.role ?? null;
   // Cards whose role matches this unit (case-insensitive). If none match the
@@ -303,38 +305,74 @@ function AsUnitWithAi({ sessionId, unit, enemies, aiDeck, reload }) {
   const draw = () => {
     if (!pool.length) return;
     setDrawn(pool[Math.floor(Math.random() * pool.length)]);
+    setOpen(true);
   };
 
-  return (
-    <div className={`grid grid-cols-1 gap-4 items-start ${drawn ? 'xl:grid-cols-[minmax(0,22rem)_1fr]' : ''}`}>
-      {/* LEFT: drawn AI control card (only when one has been drawn). */}
-      {drawn && (
-        <AiControlCard card={drawn} onReroll={draw} onClear={() => setDrawn(null)} />
-      )}
+  // The large Automate control block, rendered at the bottom of the mech
+  // sheet's armor/structure column.
+  const aiControls = drawn ? (
+    <div className="flex gap-2">
+      <button
+        onClick={draw}
+        className="flex-1 px-4 py-3 bg-sky-700 hover:bg-sky-600 border border-sky-500/50 rounded-lg text-white text-base font-bold shadow-md"
+      >
+        🎲 Draw Another
+      </button>
+      <button
+        onClick={() => setDrawn(null)}
+        className="px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 text-base font-bold"
+      >
+        Clear
+      </button>
+    </div>
+  ) : (
+    <button
+      onClick={draw}
+      disabled={!roleHasCards}
+      title={
+        roleHasCards
+          ? 'Draw a random AI control card for this unit'
+          : 'No AI control cards available yet'
+      }
+      className="w-full px-4 py-4 bg-sky-700 hover:bg-sky-600 border border-sky-500/50 rounded-lg text-white text-lg font-bold uppercase tracking-wide shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      🤖 Automate{role ? ` (${role})` : ''}
+    </button>
+  );
 
-      {/* RIGHT: the unit's combat card + the Automate control. */}
-      <div className="space-y-2">
-        {!drawn && (
-          <button
-            onClick={draw}
-            disabled={!roleHasCards}
-            title={
-              roleHasCards
-                ? 'Draw a random AI control card for this unit'
-                : 'No AI control cards available yet'
-            }
-            className="px-3 py-1.5 bg-sky-800/60 hover:bg-sky-700/60 border border-sky-700/50 rounded text-sky-200 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            🤖 Automate{role ? ` (${role})` : ''}
-          </button>
-        )}
-        <AsMechRow
-          sessionId={sessionId}
-          unit={unit}
-          enemies={enemies}
-          reload={reload}
-        />
-      </div>
+  return (
+    <div className="border border-gray-800 rounded-lg bg-gray-950 w-full overflow-hidden">
+      {/* Single shared header */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-800 text-left hover:bg-gray-900/40"
+      >
+        <span className={`text-gray-500 text-xs transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span className="text-lg text-white font-bold truncate">
+          {unit.name} {unit.model ?? ''}
+        </span>
+        <TeamBadge team={unit.team} />
+      </button>
+
+      {/* Body: AI card (left) + mech card (right), stretched to equal height. */}
+      {open && (
+        <div
+          className={`grid grid-cols-1 items-stretch divide-y divide-gray-800 ${
+            drawn ? 'xl:grid-cols-[minmax(0,24rem)_1fr] xl:divide-y-0 xl:divide-x' : ''
+          }`}
+        >
+          {drawn && <AiControlCard card={drawn} embedded />}
+          <AsMechRow
+            sessionId={sessionId}
+            unit={unit}
+            enemies={enemies}
+            reload={reload}
+            embedded
+            aiControls={aiControls}
+          />
+        </div>
+      )}
     </div>
   );
 }

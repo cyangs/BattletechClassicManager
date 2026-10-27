@@ -11,7 +11,10 @@ const POSTURES = [
   { id: 'cautious', label: 'Cautious', accent: 'text-sky-400', ring: 'border-sky-700/50', active: 'bg-sky-950/40' },
 ];
 
-export function AiControlCard({ card, onReroll, onClear }) {
+// When ``embedded`` is true, the card drops its own border + header and the
+// Draw/Clear controls (the parent container owns all of that) and fills the
+// available height so it matches the mech card beside it.
+export function AiControlCard({ card, onReroll, onClear, embedded = false }) {
   // Posture defaults to Cautious per the GM's workflow.
   const [posture, setPosture] = useState('cautious');
 
@@ -24,9 +27,15 @@ export function AiControlCard({ card, onReroll, onClear }) {
   const activeMeta = POSTURES.find((p) => p.id === posture) ?? POSTURES[2];
 
   return (
-    <div className="border border-sky-900/60 rounded-lg bg-sky-950/10 w-full overflow-hidden self-start">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-sky-900/40 bg-sky-950/20">
+    <div
+      className={
+        embedded
+          ? 'bg-sky-950/10 w-full h-full flex flex-col'
+          : 'border border-sky-900/60 rounded-lg bg-sky-950/10 w-full overflow-hidden self-start'
+      }
+    >
+      {/* Header — parent owns it in embedded mode, so show a compact variant. */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-sky-900/40 bg-sky-950/20">
         <span className="text-sky-400">🧠</span>
         <span className="text-sm font-bold text-sky-300 uppercase tracking-wide truncate">
           {card.role} AI
@@ -148,21 +157,24 @@ export function AiControlCard({ card, onReroll, onClear }) {
           )}
         </Section>
 
-        {/* Controls */}
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={onReroll}
-            className="flex-1 px-3 py-1.5 bg-sky-800/60 hover:bg-sky-700/60 border border-sky-700/50 rounded text-sky-200 text-xs font-bold"
-          >
-            🎲 Draw Another
-          </button>
-          <button
-            onClick={onClear}
-            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded text-gray-300 text-xs font-bold"
-          >
-            Clear
-          </button>
-        </div>
+        {/* Controls — only in standalone mode; the parent container owns the
+            Draw/Clear controls when embedded. */}
+        {!embedded && (
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onReroll}
+              className="flex-1 px-3 py-1.5 bg-sky-800/60 hover:bg-sky-700/60 border border-sky-700/50 rounded text-sky-200 text-xs font-bold"
+            >
+              🎲 Draw Another
+            </button>
+            <button
+              onClick={onClear}
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded text-gray-300 text-xs font-bold"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

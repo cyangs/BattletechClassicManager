@@ -1,23 +1,31 @@
 // Small presentational pieces for Alpha Strike combat.
 
 // A pip/segment bar for armor or structure. `current` of `max` filled.
-export function ArmorBar({ label, current, max, color }) {
+// `size` controls the label text, pip size, and count readout: "sm" (default,
+// compact) or "lg" (prominent, for the mech sheet).
+export function ArmorBar({ label, current, max, color, size = 'sm' }) {
   const safeMax = Math.max(max || 0, current || 0, 1);
   const pips = Array.from({ length: safeMax }, (_, i) => i < (current || 0));
+  const lg = size === 'lg';
+  const labelCls = lg
+    ? 'w-24 shrink-0 text-sm uppercase tracking-wider font-bold text-gray-300'
+    : 'w-16 shrink-0 text-[10px] uppercase tracking-wider text-gray-400';
+  const pipCls = lg ? 'w-5 h-5 rounded' : 'w-2.5 h-2.5 rounded-sm';
+  const countCls = lg
+    ? 'text-xl font-mono font-bold text-gray-100 shrink-0'
+    : 'text-xs font-mono text-gray-300 shrink-0';
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-gray-400">
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-0.5">
+    <div className={`flex items-center ${lg ? 'gap-3' : 'gap-2'}`}>
+      <span className={labelCls}>{label}</span>
+      <div className={`flex flex-wrap ${lg ? 'gap-1' : 'gap-0.5'}`}>
         {pips.map((filled, i) => (
           <span
             key={i}
-            className={`w-2.5 h-2.5 rounded-sm ${filled ? color : 'bg-gray-800 border border-gray-700'}`}
+            className={`${pipCls} ${filled ? color : 'bg-gray-800 border border-gray-700'}`}
           />
         ))}
       </div>
-      <span className="text-xs font-mono text-gray-300 shrink-0">
+      <span className={countCls}>
         {current ?? 0}/{max ?? 0}
       </span>
     </div>
